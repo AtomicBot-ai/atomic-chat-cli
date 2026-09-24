@@ -1,6 +1,6 @@
 import { adminLoginUrl, ensureAdminToken, readAdminToken, rotateAdminToken } from '../admin/index.js'
 import { AtcError, defineCommand } from '../cli/index.js'
-import { readDaemonRecord } from '../core-link/index.js'
+import { readDaemonRecord, waitForDaemonReady } from '../core-link/index.js'
 
 const open = defineCommand({
   name: 'open',
@@ -24,8 +24,8 @@ const open = defineCommand({
     if (typeof inv.values['port'] === 'string') args.push('--admin-port', inv.values['port'])
     if (typeof inv.values['host'] === 'string' && inv.values['host'] !== '127.0.0.1')
       args.push('--admin-host', inv.values['host'])
-    await ctx.core.attach({ launch: true, daemonArgs: args })
-    const record = await readDaemonRecord(ctx.paths.daemonRecord)
+    const link = await ctx.core.attach({ launch: true, daemonArgs: args })
+    const record = await waitForDaemonReady(ctx.paths.daemonRecord, link.endpoint.instanceId)
     if (!record?.admin_url) {
       throw new AtcError('ATC_ADMIN_BIND_FAILED', 'The running daemon has no web admin.', {
         hint: 'restart it: `atc restart` (without --no-admin)',

@@ -47,7 +47,7 @@ rest.
 <data>/<provider>/backends/<version>/<backend>/                          engine packs installed by the core
 <data>/atc/config.json            atc settings, 0644, tmp + rename; unknown keys preserved
 <data>/atc/secrets.json           0600: hfToken, adminPassword
-<data>/atc/run/daemon.json        {schema_version, pid, instance_id, atc_version, core_version, control_url, admin_url, started_at}
+<data>/atc/run/daemon.json        {schema_version, pid, instance_id, state, atc_version, core_version, control_url, admin_url, started_at}
 <data>/atc/run/admin-token        0600: 32 random bytes, base64url
 <data>/atc/run/host-steps/        <step_id>.request.json, <step_id>.result.json, journal.json
 <data>/atc/logs/daemon.log        the daemon's stderr (the spawner appends; rotation by log.* is iteration 2)

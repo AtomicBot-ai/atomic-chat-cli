@@ -66,6 +66,19 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
       enabled: options.telemetry ?? options.config.values.telemetry.enabled,
     },
   })
+  // Published before anything slow: a command attaching now must see an atc daemon, not a foreign owner.
+  const startingRecord: DaemonRecord = {
+    schema_version: 1,
+    pid: process.pid,
+    instance_id: core.instanceId,
+    state: 'starting',
+    atc_version: ATC_VERSION,
+    core_version: CORE_VERSION,
+    control_url: `http://${core.control.host}:${core.control.port}`,
+    admin_url: null,
+    started_at: startedAt,
+  }
+  await writeDaemonRecord(paths.daemonRecord, startingRecord)
   const relay = new RelayHub()
   const controlUrl = `http://${core.control.host}:${core.control.port}`
   const client = new CoreClient({ baseUrl: controlUrl, token: core.controlToken, name: 'atc-daemon' })
@@ -175,9 +188,8 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
   }
 
   const record: DaemonRecord = {
-    schema_version: 1,
-    pid: process.pid,
-    instance_id: core.instanceId,
+    ...startingRecord,
+    state: 'ready',
     atc_version: ATC_VERSION,
     core_version: CORE_VERSION,
     control_url: controlUrl,

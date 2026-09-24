@@ -62,6 +62,7 @@ describe('the daemon owns the folder', () => {
       instance_id: daemon.core.instanceId,
       admin_url: adminUrl,
       pid: process.pid,
+      state: 'ready',
     })
   })
 

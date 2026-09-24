@@ -1,8 +1,10 @@
 /**
  * `<data>/atc/run/daemon.json`: what the `atc` daemon publishes about itself beyond the core's
- * lock — its admin address and versions — and the proof that the owner of the folder is an `atc`
- * daemon at all, not the core's own CLI daemon on the same folder (which has no admin server and
- * no host-step loop). A record whose `instance_id` differs from the lock's is stale.
+ * lock — its state, its admin address and versions — and the proof that the owner of the folder is
+ * an `atc` daemon at all, not the core's own CLI daemon on the same folder (which has no admin
+ * server and no host-step loop). It is written as `starting` the moment the core is up, before the
+ * slow parts (hardware probe, admin listener), and rewritten as `ready` after them. A record whose
+ * `instance_id` differs from the lock's is stale.
  */
 
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
@@ -12,6 +14,8 @@ export interface DaemonRecord {
   schema_version: 1
   pid: number
   instance_id: string
+  /** `starting` proves an atc daemon owns the folder; `ready` means the admin (if any) listens. */
+  state: 'starting' | 'ready'
   atc_version: string
   core_version: string
   control_url: string
@@ -24,7 +28,7 @@ export async function readDaemonRecord(path: string): Promise<DaemonRecord | und
     const raw = JSON.parse(await readFile(path, 'utf8')) as Partial<DaemonRecord>
     if (raw.schema_version !== 1 || typeof raw.instance_id !== 'string' || typeof raw.pid !== 'number')
       return undefined
-    return raw as DaemonRecord
+    return { ...raw, state: raw.state === 'starting' ? 'starting' : 'ready' } as DaemonRecord
   } catch {
     return undefined
   }

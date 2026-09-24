@@ -81,7 +81,7 @@ Exit codes: `0` success, `1` runtime error, `2` usage (also bare `atc` and bare 
 <data>/atc/                   what only atc owns
   config.json                 settings (0644, written atomically; unknown keys are kept)
   secrets.json                0600: hfToken, adminPassword
-  run/daemon.json             pid, instance_id, atc/core versions, control_url, admin_url, started_at
+  run/daemon.json             pid, instance_id, state (starting|ready), atc/core versions, control_url, admin_url, started_at
   run/admin-token             0600: the admin login token
   run/host-steps/             <step_id>.request.json, <step_id>.result.json, journal.json
   logs/daemon.log             the daemon's stderr

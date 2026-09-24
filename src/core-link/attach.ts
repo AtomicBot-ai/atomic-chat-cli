@@ -1,13 +1,13 @@
 /**
  * Find the daemon that owns the data folder, or start one. The lock, the token and the handshake
- * are the core's (`atomic-chat-core/host`); what `atc` adds is the spawn with a log file instead
+ * are the core's (`@atomic-chat/core/host`); what `atc` adds is the spawn with a log file instead
  * of a pipe, and the check that the owner is an `atc` daemon rather than the core CLI's.
  */
 
 import { AtomicCoreError } from '@atomic-chat/core'
 import { attachToOwner, inspectLock, waitForPublishedOwner } from '@atomic-chat/core/host'
-import { AtcError } from '../errors/index.js'
 import type { AtcPaths } from '../config/paths.js'
+import { AtcError } from '../errors/index.js'
 import type { Logger } from '../output/logger.js'
 import { readDaemonRecord } from './daemon-record.js'
 import type { DaemonRecord } from './daemon-record.js'
@@ -16,8 +16,10 @@ import { HttpCoreLink } from './link.js'
 import type { CoreLink } from './link.js'
 
 export const DAEMON_START_TIMEOUT_MS = 20_000
-/** The lock goes `ready` inside the core; the atc record follows a moment later. */
-export const DAEMON_RECORD_TIMEOUT_MS = 5_000
+/** The lock goes `ready` inside the core; the `starting` record follows right after (slow runners: seconds). */
+export const DAEMON_RECORD_TIMEOUT_MS = 20_000
+/** From `starting` to `ready`: the hardware probe (PowerShell on Windows) and the admin listener. */
+export const DAEMON_READY_TIMEOUT_MS = 30_000
 
 export interface AttachOptions {
   paths: AtcPaths
@@ -92,7 +94,7 @@ export async function attachCore(options: AttachOptions): Promise<CoreLink> {
   })
 }
 
-/** The record for this owner, or undefined when none appears in time (a foreign owner never writes one). */
+/** The record for this owner in any state, or undefined when none appears in time (a foreign owner never writes one). */
 export async function waitForDaemonRecord(
   path: string,
   instanceId: string,
@@ -103,6 +105,21 @@ export async function waitForDaemonRecord(
     const record = await readDaemonRecord(path)
     if (record && record.instance_id === instanceId) return record
     if (Date.now() >= deadline) return undefined
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+}
+
+/** The record once it says `ready`, or the latest one when that takes too long. */
+export async function waitForDaemonReady(
+  path: string,
+  instanceId: string,
+  timeoutMs = DAEMON_READY_TIMEOUT_MS
+): Promise<DaemonRecord | undefined> {
+  const deadline = Date.now() + timeoutMs
+  for (;;) {
+    const record = await readDaemonRecord(path)
+    if (record && record.instance_id === instanceId && record.state === 'ready') return record
+    if (Date.now() >= deadline) return record
     await new Promise((resolve) => setTimeout(resolve, 100))
   }
 }

@@ -3,7 +3,7 @@
 import { inspectLock } from '@atomic-chat/core/host'
 import { AtcError, defineCommand } from '../cli/index.js'
 import type { CommandContext } from '../cli/index.js'
-import { readDaemonRecord } from '../core-link/index.js'
+import { readDaemonRecord, waitForDaemonReady } from '../core-link/index.js'
 import type { CoreLink } from '../core-link/index.js'
 import { formatDuration } from '../output/index.js'
 
@@ -29,6 +29,7 @@ async function describe(ctx: CommandContext, link: CoreLink) {
     data_folder: snapshot.data_folder,
     api: snapshot.server,
     admin_url: record?.admin_url ?? null,
+    state: record?.state ?? null,
     sessions: snapshot.sessions.map((s) => ({ provider: s.provider, model_id: s.model_id, port: s.port })),
     clients: snapshot.clients.map((c) => c.name),
   }
@@ -45,7 +46,7 @@ function printStatus(ctx: CommandContext, s: Awaited<ReturnType<typeof describe>
         ? `http://${s.api.host}:${s.api.port}${s.api.prefix}${s.api.requires_api_key ? ' (key required)' : ''}`
         : 'stopped',
     ],
-    ['admin', s.admin_url ?? 'off'],
+    ['admin', s.admin_url ?? (s.state === 'starting' ? 'starting' : 'off')],
     [
       'models',
       s.sessions.length
@@ -77,6 +78,7 @@ export const startCommand = defineCommand({
     if (inv.values['admin'] === false) args.push('--no-admin')
     if (typeof inv.values['admin-port'] === 'string') args.push('--admin-port', inv.values['admin-port'])
     const link = await ctx.core.attach({ launch: true, daemonArgs: args })
+    await waitForDaemonReady(ctx.paths.daemonRecord, link.endpoint.instanceId)
     const s = await describe(ctx, link)
     ctx.out.result({ started: true, ...s }, () => {
       ctx.out.success('daemon started')
