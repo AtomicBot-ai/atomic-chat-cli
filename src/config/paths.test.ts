@@ -16,9 +16,19 @@ describe('resolveAtcPaths', () => {
     expect(paths.dataFolder).toBe('/home/u/.local/share/atomic-chat-cli/data')
     expect(paths.configFile).toBe('/home/u/.local/share/atomic-chat-cli/data/atc/config.json')
     expect(paths.daemonRecord).toBe('/home/u/.local/share/atomic-chat-cli/data/atc/run/daemon.json')
-    expect(paths.layout.core.instanceLock).toBe(
-      '/home/u/.local/share/atomic-chat-cli/data/atomic-core/instance.lock'
-    )
+    // The core's layout joins with the host's separator; only its shape is asserted here.
+    expect(paths.layout.core.instanceLock).toMatch(/atomic-core[\\/]instance\.lock$/)
+  })
+
+  it('uses Windows path rules for a Windows environment', () => {
+    const paths = resolveAtcPaths({
+      ...linux(),
+      platform: 'win32',
+      env: { APPDATA: 'C:\\Users\\u\\AppData\\Roaming' },
+      homedir: 'C:\\Users\\u',
+    })
+    expect(paths.dataFolder).toBe('C:\\Users\\u\\AppData\\Roaming\\atomic-chat-cli\\data')
+    expect(paths.configFile).toBe('C:\\Users\\u\\AppData\\Roaming\\atomic-chat-cli\\data\\atc\\config.json')
   })
 
   it('prefers the flag over the environment', () => {
