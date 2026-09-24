@@ -4,7 +4,7 @@
  * `atc/` inside it holds what only `atc` owns. Pure: the environment is injected.
  */
 
-import { join } from 'node:path'
+import { posix, win32 } from 'node:path'
 import { assertCliDataFolder, dataLayout, resolveCliDataFolder } from '@atomic-chat/core/host'
 import type { DataFolderEnv, DataLayout } from '@atomic-chat/core/host'
 import { AtcError } from '../errors/index.js'
@@ -29,7 +29,9 @@ export interface AtcPaths {
   cacheDir: string
 }
 
-export function atcPathsFor(dataFolder: string): AtcPaths {
+/** The injected platform's path rules, never the host's, so the Windows branches are testable anywhere. */
+export function atcPathsFor(dataFolder: string, platform: NodeJS.Platform = process.platform): AtcPaths {
+  const { join } = platform === 'win32' ? win32 : posix
   const atcDir = join(dataFolder, 'atc')
   const runDir = join(atcDir, 'run')
   const logsDir = join(atcDir, 'logs')
@@ -61,5 +63,5 @@ export function resolveAtcPaths(env: DataFolderEnv, override?: string): AtcPaths
       hint: 'pass --data-folder with a folder of its own',
     })
   }
-  return atcPathsFor(folder)
+  return atcPathsFor(folder, env.platform)
 }
