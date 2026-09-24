@@ -149,7 +149,7 @@ export function parseInvocation(resolved: ResolvedCommand): Invocation {
     }) as typeof parsed
   } catch (error) {
     throw new AtcError('ATC_USAGE', (error as Error).message, {
-      hint: `see \`atc ${path.join(' ')} --help\``,
+      hint: helpHint(path),
     })
   }
   const specs = spec.positionals ?? []
@@ -157,18 +157,19 @@ export function parseInvocation(resolved: ResolvedCommand): Invocation {
   const hasRest = specs.some((p) => p.rest)
   if (parsed.positionals.length < required) {
     const missing = specs[parsed.positionals.length]?.name ?? 'argument'
-    throw new AtcError('ATC_USAGE', `Missing <${missing}>.`, { hint: `see \`atc ${path.join(' ')} --help\`` })
+    throw new AtcError('ATC_USAGE', `Missing <${missing}>.`, { hint: helpHint(path) })
   }
   if (!hasRest && parsed.positionals.length > specs.length) {
     const extra = parsed.positionals.slice(specs.length).join(' ')
     throw new AtcError('ATC_USAGE', `Unexpected argument: ${extra}`, {
-      hint:
-        specs.length === 0 && spec.subcommands
-          ? `unknown subcommand; see \`atc ${path.join(' ')} --help\``
-          : `see \`atc ${path.join(' ')} --help\``,
+      hint: specs.length === 0 && spec.subcommands ? `unknown subcommand; ${helpHint(path)}` : helpHint(path),
     })
   }
   return { path, values: parsed.values, positionals: parsed.positionals, spec }
+}
+
+function helpHint(path: readonly string[]): string {
+  return `see \`${['atc', ...path, '--help'].join(' ')}\``
 }
 
 /** Every command in the tree with its path, in definition order (help, docs, completion, tests). */

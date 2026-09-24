@@ -18,6 +18,7 @@ import {
   serveCommand,
   serviceCommand,
   setupCommand,
+  tuiCommand,
 } from './stubs.js'
 import { updateCommand } from './update.js'
 import { versionCommand } from './version.js'
@@ -41,6 +42,7 @@ export const ROOT = defineCommand({
     hardwareCommand,
     apiCommand,
     adminCommand,
+    tuiCommand,
     configCommand,
     doctorCommand,
     serviceCommand,

@@ -54,6 +54,7 @@ atc stop             # graceful; --force while other commands are attached, --ki
 | Access | `atc api start\|stop\|status` | The OpenAI-compatible API on the running core | stub (iteration 2) |
 | Access | `atc api key show\|set\|rotate\|clear` | The API key (a core setting) | stub (iteration 3) |
 | Access | `atc admin [open\|status\|token]` | Login URL, where the admin listens, token rotation | works |
+| Access | `atc tui` | Interactive terminal screen over the daemon: status, models, downloads, logs | stub (iteration 5) |
 | System | `atc config get\|set\|unset\|list\|path` | `atc` settings | works (`engine.*` keys are a stub) |
 | System | `atc doctor` | Diagnostic table with hints | works (GPU: NVIDIA only; Docker check skipped) |
 | System | `atc service install\|uninstall\|status\|start\|stop` | The daemon as an OS service | stub (iteration 6) |

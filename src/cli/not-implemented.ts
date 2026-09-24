@@ -9,7 +9,7 @@ export const ITERATIONS = {
   I2: 'iteration 2 (daemon lifecycle, serve/run, api start/stop)',
   I3: 'iteration 3 (models: catalog, pull, list, rm; API keys)',
   I4: 'iteration 4 (engines, setup, managed environment, elevation)',
-  I5: 'iteration 5 (admin pages: API, models, engines; non-loopback consent)',
+  I5: 'iteration 5 (admin pages: API, models, engines; non-loopback consent; the terminal UI)',
   I6: 'iteration 6 (service, update, doctor completion)',
   I7: 'iteration 7 (admin: setup wizard, logs, settings, hardware)',
 } as const
@@ -26,6 +26,7 @@ export const PLANNED: Record<string, Iteration> = {
   'api key set': 'I3',
   'api key rotate': 'I3',
   'api key clear': 'I3',
+  'tui': 'I5',
   'models search': 'I3',
   'models pull': 'I3',
   'models list': 'I3',

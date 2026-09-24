@@ -233,6 +233,22 @@ export const apiCommand = defineCommand({
   ],
 })
 
+export const tuiCommand = notImplemented({
+  name: 'tui',
+  summary: 'Interactive terminal screen over the daemon: status, models, downloads, logs',
+  description:
+    'A full-screen terminal UI for people at a keyboard: live status of the daemon, the core and the API, installed and loaded models with pull progress, the daemon log, and later the setup wizard. Needs a terminal; without one it points at `atc status --json` and the web admin. Every action it offers exists as a plain command too.',
+  group: 'access',
+  options: {
+    screen: {
+      type: 'string',
+      description: 'Open on a screen: overview, models, logs',
+      placeholder: 'name',
+      default: 'overview',
+    },
+  },
+})
+
 export const serviceCommand = defineCommand({
   name: 'service',
   summary: 'Run the daemon as an OS service (systemd, launchd, Windows task)',
