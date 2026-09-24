@@ -6,9 +6,11 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { afterAll, describe, expect, it } from 'vitest'
 
-const ROOT = new URL('../..', import.meta.url).pathname
+// Not `.pathname`: on Windows that is `/C:/…`, which neither `join` nor `spawn` accepts.
+const ROOT = fileURLToPath(new URL('../..', import.meta.url))
 const triple = { darwin: 'apple-darwin', win32: 'pc-windows-msvc', linux: 'unknown-linux-gnu' }[
   process.platform as 'darwin'
 ]
