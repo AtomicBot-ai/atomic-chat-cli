@@ -1,0 +1,126 @@
+/** An in-memory `CoreLink`: records calls, answers from a scripted snapshot, emits what a test says. */
+import type { CoreEventMessage, CoreSnapshot } from '@atomic-chat/core/client'
+import type { CoreEventHandler, CoreLink } from '../../src/core-link/index.js'
+
+export interface FakeCoreLink extends CoreLink {
+  calls: Array<{ method: string; path: string; body?: unknown }>
+  snapshotValue: CoreSnapshot
+  emit(message: CoreEventMessage): void
+  shutdowns: number
+}
+
+export function fakeCoreLink(over: Partial<CoreSnapshot> = {}): FakeCoreLink {
+  const handlers = new Set<CoreEventHandler>()
+  const snapshot: CoreSnapshot = {
+    instance_id: 'fake-instance',
+    owner_scope: 'cli',
+    protocol: 1,
+    version: '0.4.0',
+    pid: 4242,
+    data_folder: '/tmp/fake',
+    cursor: 'fake-instance:0',
+    sessions: [],
+    server: {
+      running: false,
+      host: '127.0.0.1',
+      port: 1337,
+      prefix: '/v1',
+      requires_api_key: false,
+      pid: null,
+    },
+    clients: [],
+    downloads: [],
+    ...over,
+  }
+  const link: FakeCoreLink = {
+    calls: [],
+    snapshotValue: snapshot,
+    shutdowns: 0,
+    endpoint: {
+      baseUrl: 'http://127.0.0.1:0',
+      instanceId: snapshot.instance_id,
+      version: snapshot.version,
+      pid: snapshot.pid,
+    },
+    health: async () => ({
+      ok: true,
+      pid: snapshot.pid,
+      version: snapshot.version,
+      instance_id: snapshot.instance_id,
+      protocol: snapshot.protocol,
+    }),
+    snapshot: async () => link.snapshotValue,
+    request: async <T>(method: string, path: string, body?: unknown) => {
+      link.calls.push({ method, path, body })
+      return {} as T
+    },
+    models: {
+      load: async (provider, modelId) => {
+        link.calls.push({ method: 'POST', path: `/models/${provider}/${modelId}/load` })
+        return {
+          pid: 1,
+          port: 8000,
+          model_id: modelId,
+          model_path: '',
+          is_embedding: false,
+          api_key: '',
+        } as never
+      },
+      unload: async (provider, modelId) => {
+        link.calls.push({ method: 'POST', path: `/models/${provider}/${modelId}/unload` })
+        return { success: true } as never
+      },
+      cancelLoad: async () => false,
+      sessions: async () => link.snapshotValue.sessions,
+    },
+    server: {
+      status: async () => link.snapshotValue.server,
+      start: async (body) => {
+        link.calls.push({ method: 'POST', path: '/server/start', body })
+        return { ...link.snapshotValue.server, running: true }
+      },
+      stop: async () => ({ ...link.snapshotValue.server, running: false }),
+    },
+    hardware: {
+      set: async (input) => {
+        link.calls.push({ method: 'PUT', path: '/hardware/override', body: input })
+      },
+      clear: async () => true,
+    },
+    disk: { available: async () => 10 * 1024 ** 3 },
+    environments: {
+      list: async () => [],
+      probe: async () => ({}),
+      begin: async () => ({}),
+      get: async () => ({}),
+      cancel: async () => ({}),
+      resume: async () => ({}),
+      hostStepResult: async (op, receipt) => {
+        link.calls.push({
+          method: 'POST',
+          path: `/environments/operations/${op}/host-step-result`,
+          body: receipt,
+        })
+        return {}
+      },
+    },
+    shutdown: async () => {
+      link.shutdowns += 1
+    },
+    withLease: async (_name, work) => work(link, 'client-1'),
+    events: {
+      subscribe: async (handler, options) => {
+        handlers.add(handler)
+        options.onSnapshot?.(link.snapshotValue)
+        await new Promise<void>((resolve) =>
+          options.signal.addEventListener('abort', () => resolve(), { once: true })
+        )
+        handlers.delete(handler)
+      },
+    },
+    emit: (message) => {
+      for (const h of handlers) h(message)
+    },
+  }
+  return link
+}

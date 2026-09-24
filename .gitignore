@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build
+dist/
+*.tsbuildinfo
+packages/admin-ui/dist/
+src/admin/static-assets.generated.ts
+
+# Tests
+coverage/
+test/tmp/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+*.local
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Bun compile temp files
+*.bun-build

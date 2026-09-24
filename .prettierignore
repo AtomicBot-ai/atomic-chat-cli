@@ -1,0 +1,10 @@
+dist/
+coverage/
+node_modules/
+.core/
+packages/admin-ui/dist/
+packages/admin-ui/src/routeTree.gen.ts
+test/fixtures/
+*.md
+*.generated.ts
+package-lock.json

@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>atc admin</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body {
+        font:
+          15px/1.5 system-ui,
+          sans-serif;
+        margin: 2rem auto;
+        max-width: 52rem;
+        padding: 0 1rem;
+        color: #1a1a1a;
+        background: #fafafa;
+      }
+      h1 {
+        font-size: 1.4rem;
+      }
+      code,
+      pre {
+        font-family: ui-monospace, monospace;
+      }
+      pre {
+        background: #fff;
+        border: 1px solid #ddd;
+        padding: 1rem;
+        overflow: auto;
+        border-radius: 6px;
+      }
+      .warn {
+        background: #fff7e0;
+        border: 1px solid #e6c65c;
+        padding: 0.75rem 1rem;
+        border-radius: 6px;
+      }
+      .ok {
+        color: #1a7f37;
+      }
+      .bad {
+        color: #b42318;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>atc admin</h1>
+    <p class="warn">
+      This binary was built without the web admin. The full admin comes from
+      <code>packages/admin-ui</code> (<code>npm run build:ui &amp;&amp; npm run build:bin</code>). This page
+      only shows the daemon's status.
+    </p>
+    <p id="auth"></p>
+    <pre id="status">loading…</pre>
+    <script>
+      ;(async () => {
+        const auth = document.getElementById('auth'),
+          out = document.getElementById('status')
+        const m = /#token=([^&]+)/.exec(location.hash)
+        if (m) {
+          const res = await fetch('/api/session', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', 'x-atc-admin': '1' },
+            body: JSON.stringify({ token: m[1] }),
+          })
+          history.replaceState(null, '', location.pathname)
+          auth.innerHTML = res.ok
+            ? '<span class="ok">signed in</span>'
+            : '<span class="bad">token refused</span>'
+        }
+        const res = await fetch('/api/status')
+        out.textContent = res.ok
+          ? JSON.stringify(await res.json(), null, 2)
+          : `HTTP ${res.status}: open the URL printed by \`atc admin\` (it carries the token).`
+      })()
+    </script>
+  </body>
+</html>

@@ -1,0 +1,64 @@
+/**
+ * The dispatcher. `bin.ts` is the only file with side effects; everything here takes an `AtcIo`
+ * and deps, so a test runs a command and reads what it printed without spawning a process.
+ */
+
+import {
+  createContext,
+  describeError,
+  errorBody,
+  exitCodeFor,
+  parseInvocation,
+  renderHelp,
+  resolveCommand,
+  splitGlobalFlags,
+  EXIT,
+} from './cli/index.js'
+import type { ContextDeps } from './cli/index.js'
+import { ROOT } from './commands/index.js'
+import type { AtcIo } from './io.js'
+import { colorEnabled, colorsFor } from './output/index.js'
+import { ATC_VERSION } from './version.js'
+
+export type RunCliDeps = Partial<Omit<ContextDeps, 'io' | 'flags'>>
+
+export async function runCli(argv: readonly string[], io: AtcIo, deps: RunCliDeps = {}): Promise<number> {
+  const { globals, rest, error } = splitGlobalFlags(argv)
+  const colors = colorsFor(colorEnabled({ isTTY: io.isTTY.stderr, env: io.env, noColor: globals.noColor }))
+  if (error) {
+    io.stderr(`${colors.red('error:')} ${error}\n`)
+    return EXIT.USAGE
+  }
+  if (globals.version) {
+    io.stdout(`${ATC_VERSION}\n`)
+    return EXIT.OK
+  }
+  const root = deps.root ?? ROOT
+  const resolved = resolveCommand(root, rest)
+  const help = renderHelp(resolved.spec, resolved.path, { width: io.columns })
+  if (globals.help) {
+    io.stdout(help)
+    return EXIT.OK
+  }
+  if (!resolved.spec.run) {
+    // Bare `atc` or a bare group like `atc models`: the person needs the list, but did not ask
+    // for it, so this is a usage exit — unless the group had an unknown word, which is an error.
+    if (resolved.args.length === 0) {
+      io.stdout(help)
+      return EXIT.USAGE
+    }
+  }
+  try {
+    const invocation = parseInvocation(resolved)
+    if (!invocation.spec.run) {
+      io.stdout(help)
+      return EXIT.USAGE
+    }
+    const ctx = createContext({ ...deps, io, flags: globals, root })
+    return await invocation.spec.run(invocation, ctx)
+  } catch (e) {
+    if (globals.json) io.stderr(`${JSON.stringify({ error: errorBody(e) })}\n`)
+    else io.stderr(`${colors.red('error:')} ${describeError(e)}\n`)
+    return exitCodeFor(e)
+  }
+}

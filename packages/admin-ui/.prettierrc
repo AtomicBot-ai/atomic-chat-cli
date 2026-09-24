@@ -1,0 +1,14 @@
+{
+  "semi": false,
+  "singleQuote": true,
+  "quoteProps": "consistent",
+  "trailingComma": "es5",
+  "printWidth": 110,
+  "endOfLine": "lf",
+  "overrides": [
+    {
+      "files": "src/services/atomic-core-runtime.ts",
+      "options": { "requirePragma": true }
+    }
+  ]
+}

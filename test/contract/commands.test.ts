@@ -1,0 +1,90 @@
+/** Commands against a fake core: what they print, what they call, how they fail. */
+import { readFileSync } from 'node:fs'
+import { afterEach, describe, expect, it } from 'vitest'
+import { testRun } from '../helpers/test-context.js'
+import type { TestRun } from '../helpers/test-context.js'
+
+let t: TestRun
+afterEach(() => t?.cleanup())
+
+describe('status and lifecycle', () => {
+  it('reports a stopped daemon and a running one', async () => {
+    t = testRun({ running: false })
+    expect(await t.run(['status', '--json'])).toBe(0)
+    expect(JSON.parse(t.io.out.join(''))).toMatchObject({ running: false })
+    t.cleanup()
+    t = testRun({ running: true })
+    expect(await t.run(['status'])).toBe(0)
+    expect(t.io.out.join('')).toContain('running (pid 4242')
+    expect(t.io.out.join('')).toContain('none loaded')
+  })
+
+  it('starts when nothing runs, says so when it already does, and stops through a lease', async () => {
+    t = testRun({ running: false })
+    expect(await t.run(['start', '--json'])).toBe(0)
+    expect(JSON.parse(t.io.out.join(''))).toMatchObject({ started: true, pid: 4242 })
+    t.io.out.length = 0
+    expect(await t.run(['start', '--json'])).toBe(0)
+    expect(JSON.parse(t.io.out.join(''))).toMatchObject({ started: false })
+    t.cleanup()
+    t = testRun({ running: false })
+    expect(await t.run(['stop', '--json'])).toBe(0)
+    expect(JSON.parse(t.io.out.join(''))).toMatchObject({ stopped: false })
+  })
+})
+
+describe('config', () => {
+  it('sets, gets, lists and unsets keys in the file', async () => {
+    t = testRun()
+    expect(await t.run(['config', 'set', 'api.port', '4000'])).toBe(0)
+    expect(readFileSync(t.io.env['ATC_DATA_FOLDER'] + '/atc/config.json', 'utf8')).toContain('4000')
+    t.io.out.length = 0
+    expect(await t.run(['config', 'get', 'api.port'])).toBe(0)
+    expect(t.io.out.join('')).toBe('4000\n')
+    t.io.out.length = 0
+    expect(await t.run(['config', 'list', '--json'])).toBe(0)
+    expect(JSON.parse(t.io.out.join(''))).toMatchObject({
+      values: { api: { port: 4000 } },
+      sources: { 'api.port': 'file' },
+    })
+    expect(await t.run(['config', 'unset', 'api.port'])).toBe(0)
+    t.io.out.length = 0
+    expect(await t.run(['config', 'get', 'api.port'])).toBe(0)
+    expect(t.io.out.join('')).toBe('1337\n')
+    expect(await t.run(['config', 'set', 'api.port', 'many'])).toBe(1)
+    expect(await t.run(['config', 'get', 'nope.key'])).toBe(2)
+    expect(await t.run(['config', 'get', 'engine.llamacpp.ctx_size'])).toBe(3)
+  })
+})
+
+describe('admin and doctor', () => {
+  it('prints a login link only when the daemon has an admin', async () => {
+    t = testRun()
+    expect(await t.run(['admin', '--no-open'])).toBe(1)
+    expect(t.io.err.join('')).toContain('no web admin')
+    t.io.err.length = 0
+    expect(await t.run(['admin', 'token'])).toBe(0)
+    expect(t.io.out.join('').trim().length).toBeGreaterThan(40)
+    expect(await t.run(['admin', 'status', '--json'])).toBe(0)
+  })
+
+  it('runs the doctor and reports a summary', async () => {
+    t = testRun()
+    const code = await t.run(['doctor', '--json'])
+    const body = JSON.parse(t.io.out.join('')) as {
+      status: string
+      checks: Array<{ id: string; status: string }>
+    }
+    expect(body.checks.map((c) => c.id)).toContain('data-folder')
+    expect(body.checks.find((c) => c.id === 'data-folder')?.status).toBe('ok')
+    expect(['ok', 'warn']).toContain(body.status)
+    expect(code).toBe(0)
+  })
+
+  it('shows logs, and names the stub for --follow', async () => {
+    t = testRun()
+    expect(await t.run(['logs'])).toBe(0)
+    expect(t.io.err.join('')).toContain('no log yet')
+    expect(await t.run(['logs', '-f'])).toBe(3)
+  })
+})

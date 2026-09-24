@@ -1,0 +1,93 @@
+import js from '@eslint/js'
+import tseslint from 'typescript-eslint'
+
+// Node builtins that must always be imported with the `node:` prefix.
+const NODE_BUILTINS = [
+  'assert',
+  'buffer',
+  'child_process',
+  'crypto',
+  'events',
+  'fs',
+  'fs/promises',
+  'http',
+  'https',
+  'net',
+  'os',
+  'path',
+  'readline',
+  'readline/promises',
+  'stream',
+  'stream/promises',
+  'string_decoder',
+  'timers',
+  'timers/promises',
+  'url',
+  'util',
+  'zlib',
+]
+
+export default tseslint.config(
+  {
+    ignores: [
+      'dist',
+      'coverage',
+      'node_modules',
+      '.core',
+      // The admin SPA lints with its own browser/React config (`packages/admin-ui/eslint.config.js`).
+      'packages/admin-ui',
+      '**/*.generated.ts',
+    ],
+  },
+  {
+    extends: [js.configs.recommended, ...tseslint.configs.recommended],
+    files: ['**/*.ts', '**/*.mjs', '**/*.js'],
+    languageOptions: { ecmaVersion: 2022, sourceType: 'module' },
+    rules: {
+      // Runtime-agnostic (same rule as the core): the same code runs under Node in tests and inside
+      // the Bun binary. No Bun globals, no bun: modules, no bare builtins.
+      'no-restricted-globals': [
+        'error',
+        { name: 'Bun', message: 'atc code must stay Node-compatible. Use node:* APIs.' },
+      ],
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: NODE_BUILTINS.map((name) => ({
+            name,
+            message: `Import '${name}' as 'node:${name}'.`,
+          })),
+          patterns: [
+            { group: ['bun', 'bun:*'], message: 'atc code must stay Node-compatible.' },
+            {
+              group: ['../*/!(index)', '../*/!(index).js'],
+              message: 'Import sibling modules through their index.ts only.',
+            },
+          ],
+        },
+      ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "MemberExpression[object.name='process'][property.name='versions'] > Identifier[name='bun']",
+          message: 'Do not branch on the runtime.',
+        },
+      ],
+      '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports' }],
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+    },
+  },
+  {
+    // The admin wire contract is shared with the browser: no node:* at all.
+    files: ['src/admin/contract/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [{ group: ['node:*'], message: 'src/admin/contract must stay browser-safe.' }],
+        },
+      ],
+    },
+  }
+)

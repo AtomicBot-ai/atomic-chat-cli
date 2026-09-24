@@ -1,0 +1,188 @@
+# AGENTS.md — atomic-chat-cli (`atc`)
+
+Operating instructions for AI agents and humans working in this repository. Everything here applies to
+every task. Anything that applies only sometimes lives behind a link.
+
+| Need                                             | Go to                                                    |
+| ------------------------------------------------ | -------------------------------------------------------- |
+| Processes, ports, tokens, data folder, host steps | [`docs/architecture.md`](docs/architecture.md)           |
+| Why something is built this way                  | [`docs/decisions/INDEX.md`](docs/decisions/INDEX.md)     |
+| Every command and its help text (generated)      | [`docs/commands.md`](docs/commands.md)                   |
+| Test layers, helpers, the CI matrix              | [`docs/testing.md`](docs/testing.md)                     |
+| Releasing, installers, the core pin              | [`docs/release.md`](docs/release.md)                     |
+| The web admin SPA                                | [`docs/admin-ui.md`](docs/admin-ui.md)                   |
+
+---
+
+## 1. What this is
+
+The server CLI of **Atomic Chat**: one binary, `atc`, that embeds `atomic-chat-core` (engines, models, the
+OpenAI-compatible `/v1` server) and adds what a server needs — a daemon that owns the data folder, a web
+admin on loopback, the hardware facts the core cannot measure itself, and the privileged host steps of
+managed runtimes. `atc` is a separate product from the desktop app; they share the core and nothing else.
+
+This iteration is the **scaffold**: real where the core already does the work (daemon lifecycle, health,
+admin shell, config, doctor), stubs that exit 3 everywhere else. `src/cli/not-implemented.ts` is the map of
+what is stubbed and when it lands.
+
+---
+
+## 2. Repository map
+
+| Path                    | What lives there                                                                                    |
+| ----------------------- | --------------------------------------------------------------------------------------------------- |
+| `src/bin.ts`            | The only file with side effects on import: real I/O, the daemon spawner, `process.exit`.            |
+| `src/main.ts`, `src/io.ts` | `runCli(argv, io, deps)`; `AtcIo` (real or recording) — nothing else touches `process.stdout`.   |
+| `src/cli/`              | Command framework: specs, `parseArgs` parsing, help, completion, context, the stub registry.         |
+| `src/commands/`         | The command tree (`ROOT`); one file per command or group; stubs in `stubs.ts`.                      |
+| `src/config/`           | `AtcPaths`, the config field table (`schema.ts`), parsers, migrations, layered resolution, files.   |
+| `src/errors/`           | `AtcError`, its codes, exit codes, the one rendering of any failure. Depends on nothing.            |
+| `src/output/`           | Printer (human/JSON), tables, progress, prompts, logger, colours.                                    |
+| `src/core-link/`        | The only place with a core URL or token: attach-or-spawn, `HttpCoreLink`, SSE and in-process events, `daemon.json`. |
+| `src/daemon/`           | The long-lived process: core in-process, admin, hardware push, host-step loop, run record; the spawner. |
+| `src/host/`             | `exec`, host facts, elevation strategies, host-step executor and helper, hardware prober, service templates, ports. |
+| `src/admin/`            | The admin BFF: gates, token, sessions, allowlisted proxy, SSE relay, embedded SPA. `contract/` is browser-safe. |
+| `src/models/` `src/engines/` `src/update/` `src/doctor/` | Interfaces, pure parsers and tables for later iterations; the doctor's check table. |
+| `packages/admin-ui/`    | The web admin SPA (React, Vite, Tailwind), copied and adapted from the desktop `web-app`.           |
+| `test/`                 | `contract/` (fake core and real core), `e2e/` (the built program), `runtime-compat/`, `helpers/`, `setup.ts`. |
+| `scripts/`              | Core preparation, binary build, SPA embedding, release, installers, gates, docs generation.          |
+| `docs/`                 | Architecture, testing, release, admin UI, generated `commands.md`, `decisions/` (ADRs).             |
+
+---
+
+## 3. Code rules
+
+1. **One module = one folder with `index.ts` as the only public entry.** A sibling module is imported
+   only through its `index.ts` (eslint `no-restricted-imports` pattern `../*/!(index)`). Export deliberately.
+2. **Policy is pure, I/O is separate.** Parsers, selectors, tables and plans take data and return data;
+   `fs`, `child_process`, `net`, `fetch` live in a few named files. `env`, `fetch`, `exec`, `now`,
+   `platform` are injected through options or `AtcIo`; never read `process.platform` inside policy code.
+3. **Runtime-agnostic.** The same code runs under Node in tests and inside the Bun binary. Only `node:*`
+   builtins (always with the prefix) and global `fetch`; no `Bun.*`, `bun:*`, native addons,
+   `worker_threads` or branching on `process.versions.bun`. `scripts/check-runtime-agnostic.mjs` and eslint
+   fail otherwise. The runtime choice lives in `scripts/build-binaries.mjs` alone.
+4. **Errors** are `AtcError { code, message, details?, hint? }`; codes in `src/errors/errors.ts`. The
+   core's `AtomicCoreError` passes through unchanged. Exit codes: `0` ok, `1` error, `2` usage, `3`
+   `ATC_NOT_IMPLEMENTED`, `130` interrupted. `--json`: one document on stdout, errors as JSON on stderr.
+5. **`src/admin/contract/` is browser-safe:** types and string constants only, no `node:*`, only type
+   imports from the rest of `atc`; core shapes come from `@atomic-chat/core/contracts`.
+6. **Naming.** Files `kebab-case.ts`; React components `PascalCase.tsx`; classes `PascalCase`, functions
+   `camelCase`. Wire fields `snake_case` as the core spells them.
+7. **300 lines per file.** Split before you cross it.
+8. **Tests next to the source** (`foo.ts` ↔ `foo.test.ts`), table-driven for policy code.
+9. **Lifted admin files keep their provenance header** (`// Lifted from Atomic-Chat/web-app/src/<path> @
+   <commit>; adapted: …`) and a line in `packages/admin-ui/LIFTED.md`.
+10. **Every dependency needs a reason.** Runtime deps today: `atomic-chat-core`. Adding one needs an
+    explicit "ok" from the owner and an ADR.
+11. **Do only what was asked.** No drive-by refactors; propose them. **Never commit unless asked.**
+12. **Record non-trivial decisions** as a file in `docs/decisions/` (template `_TEMPLATE.md`) plus one
+    line in `INDEX.md`, in the same session.
+13. **Everything in the repo is English** — code, comments, commit messages, docs, scripts and their output.
+
+---
+
+## 4. Commands
+
+```bash
+npm install                     # @atomic-chat/core from npm, the admin-ui workspace
+npm run lint && npm run typecheck && npm run format:check
+npm test                        # unit + contract on Node
+npm run build                   # dist/ (needed by e2e from source and by docs:commands)
+npm run docs:commands           # regenerate docs/commands.md (CI checks it is current)
+npm run build:ui && npm run embed:ui && npm run build:bin   # SPA → generated module → dist/bin/atc-<triple>
+npm run test:e2e && npm run test:runtime-compat && bun test test/runtime-compat
+npm run verify                  # every gate, as CI runs them — run before finishing
+```
+
+Node 22 is the development and test runtime; npm is the package manager; Bun 1.3.10 compiles. Code never
+knows which runtime it is on.
+
+---
+
+## 5. How a command is built
+
+A command is a `CommandSpec` (`src/cli/command.ts`): `name`, `summary`, `description`, `group`
+(`run` | `models` | `access` | `system`), `options` (string/boolean, `parseArgs` strict), `positionals`,
+`subcommands`, `defaultSubcommand`, `examples`, `hidden`, and `run(invocation, ctx)` returning the exit
+code. Help, `docs/commands.md` and `atc completion` render from the spec, so nothing drifts. Global flags
+are stripped once by `splitGlobalFlags` before the command parses its own.
+
+A stub is `notImplemented(spec)`: same strict parsing and help, `run` throws `ATC_NOT_IMPLEMENTED` naming
+the iteration from `PLANNED` in `src/cli/not-implemented.ts`. `not-implemented.test.ts` asserts that every
+stub in the tree is registered and every registry entry is a stub. Partial stubs of working commands
+(`logs --follow`, `update apply`, `config engine.*`) are in `PLANNED_PARTIAL`.
+
+`run` gets a `CommandContext`: `io`, `flags`, `paths`, `config()` (lazy), `out` (printer: `result(json,
+humanFn)`), `log`, `prompt`, `core.attach({ launch })`, `host`, `now`, `signal`. Output goes through
+`ctx.out`; diagnostics through `ctx.log` (stderr). `ctx.prompt.confirm` honours `--yes` off a terminal and
+otherwise fails with `ATC_CONSENT_REQUIRED`.
+
+---
+
+## 6. Testing
+
+Five layers (`vitest.config.ts`, details in `docs/testing.md`):
+
+- **unit** — `src/**/*.test.ts`, next to the code, pure tables and fakes.
+- **contract** — `test/contract/`: commands against `FakeCoreLink` (`commands.test.ts`); the daemon against
+  a real `AtomicCore` in a temporary folder (`daemon.test.ts`): lock, token, run record, admin auth, proxy, SSE.
+- **e2e** — `test/e2e/`: the built program (`dist/bin/atc-*` when present, else `node dist/bin.js`).
+- **runtime-compat** — `test/runtime-compat/`: Node behaviours the daemon relies on, under vitest **and**
+  `bun test`.
+- **ui** — `packages/admin-ui`, its own vitest (jsdom).
+
+`test/setup.ts` points `ATC_DATA_FOLDER` and `ATOMIC_CORE_DATA_FOLDER` at a fresh `mkdtemp` per worker;
+`test/helpers/tmp-data-folder.ts` gives a folder per test. No test touches a real data folder, spawns a real
+engine, or reaches the network. Helpers: `testRun()` (recording I/O + fake core + fake host),
+`fakeCoreLink()`, `fakeHost()`, `fakeCoreFactory()`.
+
+Every exported function has a unit test; every user-visible flow has a contract test and, once it works in
+the binary, an e2e test. Verify before finishing: `npm run verify`; for `src/daemon/` or `src/host/`
+changes also say which OS you ran e2e on.
+
+---
+
+## 7. Checklists
+
+**Add a command.** Spec in `src/commands/<name>.ts` (or a group file); add it to `ROOT` in
+`src/commands/index.ts` in help order; if it is a stub, `notImplemented()` + a `PLANNED` line; unit test
+for any pure helper; contract test in `test/contract/commands.test.ts`; `npm run build && npm run
+docs:commands`; e2e case when it works in the binary.
+
+**Add a config field.** One line in `FIELDS` (`src/config/schema.ts`) with type, default, description
+(min/max/values as needed) and the matching key in the `AtcConfig` type; a `schema.test.ts`/`parse.test.ts`
+case; the env name derives from the path (`api.port` → `ATC_API_PORT`); `config list`, `config set` and
+`GET /api/config` pick it up. A schema change bumps `CONFIG_VERSION` and adds a `MIGRATIONS` step.
+
+**Add an admin route.** Path constant in `src/admin/contract/routes.ts`, wire types in `contract/api.ts`
+(browser-safe); handler in `src/admin/bff.ts` behind the session check; for a core passthrough, extend
+`READ_ALLOW`/`WRITE_ALLOW` instead — never `/shutdown`, `/clients`, telemetry consent or cloud keys; a
+`bff.test.ts` case and a `test/contract/daemon.test.ts` request; the SPA service that calls it.
+
+---
+
+## 8. The core
+
+The core (`@atomic-chat/core`, repo `atomic-chat-core`) is embedded at an exact npm version, never a caret
+(`docs/release.md`). What comes from where:
+
+| Entry point                  | Used for                                                                                         |
+| ---------------------------- | ------------------------------------------------------------------------------------------------ |
+| `atomic-chat-core`           | `AtomicCore.create` in the daemon, `AtomicCoreError`, `CORE_VERSION`, hardware/session types.    |
+| `@atomic-chat/core/host`      | Data-folder rules (`resolveCliDataFolder`, `assertCliDataFolder`, `dataLayout`), the lock read side (`inspectLock`, `waitForPublishedOwner`), `attachToOwner`, `selfCommand`, `openInBrowser`. |
+| `@atomic-chat/core/client`    | `CoreClient` (control API, SSE `events`, `request`), `CoreSnapshot`, `CoreEventMessage`.          |
+| `@atomic-chat/core/contracts` | Browser-safe wire types for `src/admin/contract` and the SPA.                                    |
+| `@atomic-chat/core/models`, `/downloads` | Reserved for iteration 3 (`ModelInstaller` over `Downloader` and `downloadHfModel`). |
+
+Rule: **never copy core logic — request an export.** Lock semantics, attach, downloads, `model.yml` and
+engine selection belong to the core; a missing export is a change in the core branch (plan §9), not a copy
+here. The one deliberate mirror is `src/host/managed-types.ts` (types from the core's `feat/tenzor-rt`
+branch), which becomes re-exports once that branch lands. The core never probes GPUs itself; the daemon
+pushes `PUT /hardware/override` after start.
+
+---
+
+## 9. Keeping this file small
+
+Target ≤ 200 lines. No decision log here — one ADR per file under `docs/decisions/`. No duplication with
+`docs/`; link instead. When they disagree, the linked doc wins and this file gets fixed.
