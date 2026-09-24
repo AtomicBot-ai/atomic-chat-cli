@@ -2,7 +2,7 @@
  * The registry of scaffold stubs and the iteration each one is planned for. One source of truth:
  * `notImplemented()` reads it for its message, and a test asserts that every stub in the command
  * tree is listed here and every entry here is a stub — so a command cannot be implemented while
- * still listed, or listed while quietly missing.
+ * still listed, or listed while quietly missing. The plan behind the iterations is docs/roadmap.md.
  */
 
 export const ITERATIONS = {

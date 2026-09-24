@@ -151,6 +151,7 @@ Note: the core's own CLI defaults its public API to port 6767; `atc` uses 1337, 
 
 - [`AGENTS.md`](AGENTS.md) — working in this repository: map, rules, checklists
 - [`docs/architecture.md`](docs/architecture.md) — processes, ports and tokens, the data folder, host steps
+- [`docs/roadmap.md`](docs/roadmap.md) — the iterations behind the stubs, and the terminal UI design
 - [`docs/commands.md`](docs/commands.md) — every command with its help text (generated)
 - [`docs/testing.md`](docs/testing.md) — test layers, helpers, CI
 - [`docs/release.md`](docs/release.md) — releasing, installers, self-update, the core pin

@@ -7,6 +7,7 @@ every task. Anything that applies only sometimes lives behind a link.
 | ------------------------------------------------ | -------------------------------------------------------- |
 | Processes, ports, tokens, data folder, host steps | [`docs/architecture.md`](docs/architecture.md)           |
 | Why something is built this way                  | [`docs/decisions/INDEX.md`](docs/decisions/INDEX.md)     |
+| What comes next, iteration by iteration           | [`docs/roadmap.md`](docs/roadmap.md)                     |
 | Every command and its help text (generated)      | [`docs/commands.md`](docs/commands.md)                   |
 | Test layers, helpers, the CI matrix              | [`docs/testing.md`](docs/testing.md)                     |
 | Releasing, installers, the core pin              | [`docs/release.md`](docs/release.md)                     |
