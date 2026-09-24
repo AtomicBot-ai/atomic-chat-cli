@@ -1,7 +1,7 @@
 .PHONY: install build ui bin test verify release
 
 install: ## install dependencies
-	npm install
+	bun install
 
 build: ## compile TypeScript to dist/
 	npm run build

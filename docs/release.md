@@ -28,7 +28,7 @@ branch. Three jobs, one at a time (`concurrency: release`):
 2. **gates** — `ci.yml` through `workflow_call`: lint, typecheck, format, generated docs check, the UI
    build and tests, and the test matrix on ubuntu x64/arm64, macOS, Windows x64/arm64 including
    `build:bin` and the binary e2e. Nothing ships that did not pass on every runner.
-3. **publish** — on ubuntu: `npm ci`, `build:ui`, `build:bin:all` (Bun cross-compiles
+3. **publish** — on ubuntu: `bun install --frozen-lockfile`, `build:ui`, `build:bin:all` (Bun cross-compiles
    all six targets; `ATC_GIT_SHA` is baked in), a check that the Linux x64 binary reports the version, then
    the assets are named, checksummed and published with `gh release create --generate-notes --latest`.
 
@@ -80,9 +80,10 @@ newer core unsafe.
 "dependencies": { "@atomic-chat/core": "0.5.1" }
 ```
 
-To bump the core: `npm install @atomic-chat/core@<version>`, run `npm run verify`, and commit the bump on
-its own. To develop against a local core checkout, build it there and `npm install <path>` (a `file:`
-link), and put the exact version back before committing. The core's `attachToOwner` refuses a version mismatch between the running daemon and the
+To bump the core: `bun add --exact @atomic-chat/core@<version>`, run `npm run verify`, and commit the bump
+(`package.json` and `bun.lock`) on its own. To develop against a local core checkout, build it there, run
+`bun link` in it and `bun link @atomic-chat/core` here (only `node_modules` changes), and `bun install
+--force` to go back to the pinned version. The core's `attachToOwner` refuses a version mismatch between the running daemon and the
 attaching command, so a core bump is always followed by an `atc` release, and the first `atc start` after an
 upgrade replaces an idle old daemon.
 

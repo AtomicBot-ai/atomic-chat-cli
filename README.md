@@ -130,19 +130,20 @@ ssh -L 1338:127.0.0.1:1338 user@server
 
 ## Development
 
-Prerequisites: Node 22 and npm (the package manager; `package-lock.json` is committed) and Bun 1.3.10 (only
-to compile the binary and to run `bun test test/runtime-compat`). The core comes from npm as
-`@atomic-chat/core` at an exact version.
+Prerequisites: Bun 1.3.10 (the package manager — `bun.lock` is committed — and the compiler of the binary)
+and Node 22 (the development and test runtime; scripts run as `npm run …`, like in the core). The core comes
+from npm as `@atomic-chat/core` at an exact version.
 
 ```sh
-npm install                  # the core from npm and the admin-ui workspace
+bun install                  # the core from npm and the admin-ui workspace
 npm test                     # unit + contract projects on Node
 npm run build:bin            # embeds the admin SPA (or the placeholder) and compiles dist/bin/atc-<triple>
 npm run verify               # lint, typecheck, format, tests, build, UI, binary, e2e, runtime-compat
 ```
 
-To develop against a local core checkout, build it there (`npm run build`) and `npm install <path>`; put the
-exact version back before committing. `node dist/bin.js …` runs the CLI from source after `npm run build`; `npm run dev` in
+To develop against a local core checkout, build it there (`npm run build`), run `bun link` in it and
+`bun link @atomic-chat/core` here; `package.json` and `bun.lock` stay untouched and `bun install --force` puts
+the pinned version back. `node dist/bin.js …` runs the CLI from source after `npm run build`; `npm run dev` in
 `packages/admin-ui` runs the SPA against a daemon started with `atc admin --no-open`.
 
 Note: the core's own CLI defaults its public API to port 6767; `atc` uses 1337, like the desktop app.

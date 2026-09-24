@@ -85,7 +85,7 @@ what is stubbed and when it lands.
 ## 4. Commands
 
 ```bash
-npm install                     # @atomic-chat/core from npm, the admin-ui workspace
+bun install                     # @atomic-chat/core from npm, the admin-ui workspace (bun.lock is committed)
 npm run lint && npm run typecheck && npm run format:check
 npm test                        # unit + contract on Node
 npm run build                   # dist/ (needed by e2e from source and by docs:commands)
@@ -95,8 +95,8 @@ npm run test:e2e && npm run test:runtime-compat && bun test test/runtime-compat
 npm run verify                  # every gate, as CI runs them — run before finishing
 ```
 
-Node 22 is the development and test runtime; npm is the package manager; Bun 1.3.10 compiles. Code never
-knows which runtime it is on.
+Node 22 is the development and test runtime; Bun 1.3.10 installs dependencies and compiles; scripts run
+through `npm run`, as in the core. Code never knows which runtime it is on.
 
 ---
 
