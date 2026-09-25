@@ -10,3 +10,19 @@ export interface AdminEvent {
   event: CoreEventName | AtcEventName | 'resync'
   data: unknown
 }
+
+/**
+ * The events after which the status view (the admin dashboard, the terminal UI's Overview) may read
+ * differently, plus the relay's own `resync`. Both front ends refresh on exactly this list.
+ */
+export const STATUS_EVENTS = [
+  'resync',
+  'session:started',
+  'session:unloaded',
+  'session:died',
+  'server:started',
+  'server:stopped',
+  'server:bind-failed',
+  'atc:status',
+  'atc:host-step',
+] as const

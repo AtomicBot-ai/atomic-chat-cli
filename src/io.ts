@@ -15,6 +15,13 @@ export interface TtyFacts {
   stderr: boolean
 }
 
+/** The real terminal, for a full-screen UI that needs the streams themselves (raw mode, resize). */
+export interface TerminalStreams {
+  stdin: NodeJS.ReadStream
+  stdout: NodeJS.WriteStream
+  stderr: NodeJS.WriteStream
+}
+
 export interface AtcIo {
   stdout: (text: string) => void
   stderr: (text: string) => void
@@ -31,10 +38,16 @@ export interface AtcIo {
   waitForShutdown: (onStop: () => Promise<void>) => Promise<void>
   /** Open a URL in the user's browser; best effort, the URL is always printed as well. */
   openUrl: (url: string) => Promise<void>
+  /** Present only when stdin and stdout are both a terminal: what `atc tui` renders on. */
+  terminal?: TerminalStreams
 }
 
 export function nodeIo(): AtcIo {
+  const interactive = Boolean(process.stdin.isTTY) && Boolean(process.stdout.isTTY)
   return {
+    ...(interactive
+      ? { terminal: { stdin: process.stdin, stdout: process.stdout, stderr: process.stderr } }
+      : {}),
     stdout: (text) => process.stdout.write(text),
     stderr: (text) => process.stderr.write(text),
     env: process.env,

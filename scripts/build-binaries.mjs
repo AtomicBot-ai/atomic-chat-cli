@@ -58,9 +58,13 @@ for (const target of targets) {
     'build',
     '--compile',
     `--target=${target}`,
-    // Identifiers are kept so stack traces name functions; the source map maps to src/.
-    '--minify-syntax',
-    '--minify-whitespace',
+    // `--production` is what makes Bun emit the production JSX runtime (`jsx`, not `jsxDEV`) to
+    // match React's production build; `--compile` alone does not. It also minifies identifiers, so
+    // `--keep-names` keeps function and class names for stack traces; the source map maps to src/.
+    // The terminal UI's Ink pulls `react-devtools-core` only when DEV=true; it is a devDependency so
+    // the bundler can resolve it (an --external import is hoisted and fails at start).
+    '--production',
+    '--keep-names',
     '--sourcemap',
     '--define',
     `__ATC_GIT_SHA__=${JSON.stringify(GIT_SHA)}`,

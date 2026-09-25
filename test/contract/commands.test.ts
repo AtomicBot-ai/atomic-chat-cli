@@ -1,6 +1,7 @@
 /** Commands against a fake core: what they print, what they call, how they fail. */
 import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it } from 'vitest'
+import { eventually, fakeTerminal } from '../helpers/fake-terminal.js'
 import { testRun } from '../helpers/test-context.js'
 import type { TestRun } from '../helpers/test-context.js'
 
@@ -86,5 +87,49 @@ describe('admin and doctor', () => {
     expect(await t.run(['logs'])).toBe(0)
     expect(t.io.err.join('')).toContain('no log yet')
     expect(await t.run(['logs', '-f'])).toBe(3)
+  })
+})
+
+describe('the terminal UI', () => {
+  it('needs a terminal: `atc tui` without one is a usage error, bare `atc` prints help', async () => {
+    t = testRun()
+    expect(await t.run(['tui'])).toBe(2)
+    expect(t.io.err.join('')).toContain('The terminal UI needs an interactive terminal.')
+    expect(t.io.err.join('')).toContain('atc status --json')
+    expect(await t.run(['tui', '--screen', 'models'])).toBe(2)
+    expect(t.io.err.join('')).toContain("Unknown screen 'models'")
+    expect(await t.run([])).toBe(2)
+    expect(t.io.out.join('')).toContain('Usage: atc <command>')
+  })
+
+  it('opens on bare `atc` in a terminal, shows the daemon, and leaves on q without stopping it', async () => {
+    const terminal = fakeTerminal(100, 30)
+    t = testRun({
+      io: {
+        terminal: terminal.streams,
+        isTTY: { stdin: true, stdout: true, stderr: true },
+        waitForShutdown: () => new Promise<void>(() => undefined),
+      },
+    })
+    const exit = t.run([])
+    await eventually(() => terminal.stdout.text().includes('instance fake-ins'), 'the overview')
+    expect(terminal.stdout.text()).toContain('1 Overview')
+    terminal.stdin.press('2')
+    await eventually(() => terminal.stdout.text().includes('daemon.log'), 'the logs screen')
+    terminal.stdin.press('q')
+    expect(await exit).toBe(0)
+    expect(t.link.shutdowns).toBe(0)
+    // Back from the alternate screen: the shell's scrollback is as it was.
+    expect(terminal.stdout.writes.join('')).toContain('\u001b[?1049l')
+    // Nothing was written around the frame.
+    expect(t.io.err.join('')).toBe('')
+  })
+
+  it('keeps `--json` on a terminal a usage error rather than a screen', async () => {
+    const terminal = fakeTerminal()
+    t = testRun({ io: { terminal: terminal.streams, isTTY: { stdin: true, stdout: true, stderr: true } } })
+    expect(await t.run(['tui', '--json'])).toBe(2)
+    expect(await t.run(['--json'])).toBe(2)
+    expect(terminal.stdout.writes).toEqual([])
   })
 })

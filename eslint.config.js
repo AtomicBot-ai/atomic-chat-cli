@@ -1,4 +1,5 @@
 import js from '@eslint/js'
+import reactHooks from 'eslint-plugin-react-hooks'
 import tseslint from 'typescript-eslint'
 
 // Node builtins that must always be imported with the `node:` prefix.
@@ -41,7 +42,7 @@ export default tseslint.config(
   },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
-    files: ['**/*.ts', '**/*.mjs', '**/*.js'],
+    files: ['**/*.ts', '**/*.tsx', '**/*.mjs', '**/*.js'],
     languageOptions: { ecmaVersion: 2022, sourceType: 'module' },
     rules: {
       // Runtime-agnostic (same rule as the core): the same code runs under Node in tests and inside
@@ -77,6 +78,12 @@ export default tseslint.config(
       '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports' }],
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
     },
+  },
+  {
+    // The terminal UI is React (Ink): the hooks rules apply as in the admin SPA.
+    files: ['src/tui/**/*.tsx', 'src/tui/**/*.ts'],
+    plugins: { 'react-hooks': reactHooks },
+    rules: reactHooks.configs.recommended.rules,
   },
   {
     // The admin wire contract is shared with the browser: no node:* at all.

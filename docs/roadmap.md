@@ -10,11 +10,12 @@ puts an engine, a model and an OpenAI-compatible API on a server* — and each n
 ## Where things stand
 
 Working today: `start`, `stop`, `restart`, `status`, `logs`, `admin` (token login, live dashboard),
-`config`, `doctor`, `update --check`, `version`, `completion`, the hidden `daemon` and `host-step exec`.
-The daemon boots the core in-process, pushes hardware facts to it, serves the web admin and runs the
-host-step loop. See [`architecture.md`](architecture.md) for how the pieces fit.
+`tui` (what bare `atc` opens on a terminal: Overview, Logs, Config, Doctor), `config`, `doctor`,
+`update --check`, `version`, `completion`, the hidden `daemon` and `host-step exec`. The daemon boots
+the core in-process, pushes hardware facts to it, serves the web admin and runs the host-step loop. See
+[`architecture.md`](architecture.md) for how the pieces fit.
 
-Stubbed: `serve`, `run`, `models *`, `engines *`, `setup`, `hardware *`, `api *`, `tui`, `service *`,
+Stubbed: `serve`, `run`, `models *`, `engines *`, `setup`, `hardware *`, `api *`, `service *`,
 `update` (apply), `logs --follow`, `status --watch`, `config engine.*`.
 
 ## Iterations
@@ -34,6 +35,10 @@ The product's core promise. **Goal:** `atc serve <model>` on a clean server ends
   at daemon start (`PublicServerKeeper`).
 - Replace an idle daemon of an older `atc`/core after an upgrade instead of refusing to attach.
 - `status --watch`, `logs --follow`, `config engine.<provider>.<key>` forwarded to `PATCH /settings/:provider`.
+  `logs --follow` reads through `followLog` (`src/daemon/log-follow.ts`), which the TUI's Logs screen
+  already uses.
+- Terminal UI: the API card on Overview gets start/stop keys (`atc api start|stop`), and the header the
+  GPU the prober found.
 - **Done when:** the e2e suite serves a small GGUF through the compiled binary on all five CI platforms and
   a `curl` to `/v1/chat/completions` answers; `atc run` survives a SIGTERM without orphaning the engine.
 
@@ -50,8 +55,10 @@ The product's core promise. **Goal:** `atc serve <model>` on a clean server ends
   `mmproj`; progress on the terminal and as `atc:download` events for the admin and the TUI.
 - `models search|pull|list|rm|info|load|unload`; `api key show|set|rotate|clear` (the key is the core's
   `server.api_key` setting; a non-loopback API without a key is refused unless `--insecure-no-key`).
+- Terminal UI: the Models and Downloads screens (see [The terminal UI](#the-terminal-ui)).
 - **Done when:** `atc models pull` resumes an interrupted download and refuses a wrong checksum;
-  `atc serve <alias>` works from a catalog alias; the admin's Models page lists installed models.
+  `atc serve <alias>` works from a catalog alias; the admin's Models page lists installed models; a model
+  can be pulled and loaded from the TUI with live progress.
 
 ### Iteration 4 — engines, setup, the managed runtime
 
@@ -69,13 +76,14 @@ privileges handled honestly.
 - **Depends on the core:** the `feat/tenzor-rt` branch merged over 0.5.x, `provisionerFor()` implemented,
   recipes with digests and step parameters exported through `@atomic-chat/core/host`, a `managedRuntimes`
   option on `AtomicCore.create` for host facts. `atc` will target that core version exactly.
+- Terminal UI: the Setup screen, the same operation as `atc setup` shown as a stepper.
 - **Done when:** on an Ubuntu box with an NVIDIA card, `atc setup --tensorrt` ends in `ready` after one
   `sudo` prompt and one re-login, and `atc serve --engine tensorrt-llm <checkpoint>` answers.
 
-### Iteration 5 — the admin pages and the terminal UI
+### Iteration 5 — the admin pages
 
-**Goal:** two interactive front ends over the same daemon, for two kinds of people: the browser for
-those who avoid terminals, the TUI for those who live in them.
+**Goal:** the browser front end catches up with the terminal one, for people who avoid terminals. (The
+terminal UI shipped early, on 2026-09-25, and grows a screen per iteration instead.)
 
 Admin pages, lifted from the desktop web-app where possible (`docs/admin-ui.md`):
 
@@ -83,10 +91,8 @@ Admin pages, lifted from the desktop web-app where possible (`docs/admin-ui.md`)
   Engines (packs, optimal, install); `PATCH /api/config`; a password login so the admin may listen on a
   non-loopback address when a server has no SSH access.
 
-The terminal UI, `atc tui` (see the design below).
-
-- **Done when:** a model can be pulled and loaded from both the browser and the TUI, with live progress,
-  and neither front end offers anything that has no plain-command equivalent.
+- **Done when:** a model can be pulled and loaded from the browser, with live progress, and no front end
+  offers anything that has no plain-command equivalent.
 
 ### Iteration 6 — service, update, doctor
 
@@ -112,61 +118,89 @@ The terminal UI, `atc tui` (see the design below).
 
 ## The terminal UI
 
-`atc tui` is a full-screen, keyboard-driven screen on [Ink](https://github.com/vadimdemedes/ink) (React
-for the terminal), the stack atomic-agent's TUI is built on. It is the third front end over the daemon,
-never the only one: everything it does exists as a plain command, bare `atc` keeps printing help, and
-without a terminal it exits with a usage error that names `atc status --json` and `atc admin`. The
-decision and its limits are in
-[the ADR](decisions/2026-09-24-add-an-optional-terminal-ui.md).
+Bare `atc` on an interactive terminal opens a full-screen, keyboard-driven screen on
+[Ink](https://github.com/vadimdemedes/ink) (React for the terminal), the stack atomic-agent's TUI is
+built on; `atc tui [--screen <name>]` opens it explicitly. Without a terminal (a pipe, systemd, cron,
+`docker run` without `-t`) or with `--json`, bare `atc` prints help and exits 2, and `atc tui` exits 2
+naming `atc status --json` and `atc admin`. It is a front end over the daemon, never the only one:
+everything it does exists as a plain command, it holds no lease, starts nothing on its own, and leaving
+it never stops the daemon. The decision and its limits are in
+[the ADR](decisions/2026-09-25-open-the-terminal-ui-by-default-on-a-terminal.md).
 
 ### What it looks like
 
 ```
-┌ atc 0.2.0 · core 0.6.0 · daemon up 2h 14m · gpu RTX 4090 24 GiB ───────────────── ? help  q quit ┐
-│ Overview   Models   Downloads   Logs   Setup                                                    │
-├────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ● API        http://0.0.0.0:1337/v1        key required        12 req/min                        │
-│ ● Model      Qwen3-8B Q4_K_M               llamacpp-upstream   :8001   ctx 32768                 │
-│ ○ Admin      http://127.0.0.1:1338                                                               │
-│                                                                                                  │
-│ Downloads    gemma-3-12b Q4_K_M  ████████████░░░░░░░░  61%  8.1 GiB / 13.2 GiB   42 MiB/s  2m10s │
-│                                                                                                  │
-│ Recent       14:02 session started  Qwen3-8B                                                     │
-│              14:01 backend installed  b6000/cuda-cu12.4-x64                                      │
-├────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ↑↓ move  ⏎ open  l load  u unload  p pull  s start api  S stop api  r refresh                    │
-└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+╭───────────────────────────────────────────────────────────────────────────────────────────────╮
+│        ▄▄                                                                                     │
+│   ▄█▄  ██  ▄█▄      Atomic Server                                                             │
+│    ▀████████▀       Local models behind an OpenAI-compatible API                              │
+│  ▄▄▄████████▄▄▄                                                                               │
+│  ▀▀▀████████▀▀▀     atc 0.1.0 · core 0.5.1                                                    │
+│    ▄████████▄       ● daemon up 2h 14m · API http://0.0.0.0:1337/v1                           │
+│   ▀█▀  ██  ▀█▀      data /home/u/.local/share/atomic-chat-cli/data                            │
+│        ▀▀           a web admin  ? keys  q quit                                               │
+╰───────────────────────────────────────────────────────────────────────────────────────────────╯
+ 1 Overview   2 Logs   3 Config   4 Doctor
+╭───────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ● Daemon              pid 4121 · up 2h 14m · started 2026-09-25 09:27                         │
+│                       data folder /home/u/.local/share/atomic-chat-cli/data                   │
+│ ● Core                0.5.1 · instance 26ff4101… · protocol 1 · pid 4121                      │
+│ ● API server          http://0.0.0.0:1337/v1 · key required · pid 4121                        │
+│ ● Loaded models       qwen3-8b · llamacpp-upstream · :8001 · pid 4180                         │
+│   Pending host steps  none                                                                    │
+│ ● Admin               http://127.0.0.1:1338 · atc 0.1.0 · a for a login link                  │
+╰───────────────────────────────────────────────────────────────────────────────────────────────╯
+11:41 daemon started
+S stop  R restart  a admin link  r refresh  ←→ screens  ? help  q quit
 ```
 
-- **Header:** versions, daemon uptime, the GPU the prober found. **Tabs:** Overview, Models, Downloads,
-  Logs, Setup (the last appears once iteration 4 lands). **Footer:** the keys that apply to the focused
-  element, always visible.
-- **Overview:** the same cards as the admin dashboard, in the same order and words, so a person moving
-  between the two never relearns anything: API, loaded models, admin address, active downloads, recent
-  events.
-- **Models:** installed models with size, quantisation, loaded state and port; `l`/`u` load and unload,
-  `p` opens a pull prompt (catalog search with the same resolver as `models pull`), `d` deletes after a
-  confirmation. A pull shows a progress bar, rate and ETA in place and moves to Downloads.
-- **Downloads:** every transfer with progress, pause and cancel (`x`), errors with the same hints the CLI
-  prints.
-- **Logs:** the daemon log tail with level colours, `f` toggles follow, `/` filters.
-- **Setup:** the managed-runtime wizard as a stepper (the `SetupState` machine from
-  `src/engines/managed-environment.ts`); when a step needs elevation it shows the exact command to run
-  in another shell and waits, exactly like the CLI's `manual` strategy.
+- **Welcome:** on every screen, when the terminal has at least 64 columns and 24 rows, a box greets you
+  the way Claude Code does: the Atomic Chat logo in half blocks (the "/" bar brighter, as it lies on top
+  in the real mark), the product name *Atomic Server*, versions, the daemon's state and the first keys.
+  Only the terminal's size decides it, never the tab or an overlay, so switching screens moves nothing;
+  every screen and overlay fits the 9 lines left under it at 80×24. **Header:** on a smaller terminal,
+  one line instead: `✳ Atomic Server · atc … · core … · daemon up …` (the GPU joins in iteration 2).
+  **Tabs:** in the order below; `←`/`→` go round them, `1`–`4` jump, Tab steps. **Status line:** a
+  spinner while something runs, else the last thing that happened. **Footer:** only the keys that apply
+  now, always visible; `?` lists them all.
+- **Overview (now):** the admin dashboard's cards in its order and words — Daemon, Core, API server,
+  Loaded models, Pending host steps, Admin — one line each. `s` starts a stopped daemon (`atc start`),
+  `S` and `R` stop and restart after a y/n question (`atc stop`, `atc restart`), `a` shows the admin
+  login link (`atc admin --no-open`) and `o` opens it in a browser.
+- **Logs (now):** the daemon log's tail with level colours, following new lines; `↑↓`, `PgUp`/`PgDn`,
+  `g`/`G` scroll, `f` toggles follow, `/` filters.
+- **Config (now):** every field with its value and source; Enter flips a boolean, moves an enum on, or
+  edits a value inline (`atc config set`); `u` resets it (`atc config unset`). A value an environment
+  variable overrides is marked, and a change while the daemon runs says to restart it.
+- **Doctor (now):** the `atc doctor` checks with their marks and hints; `r` runs them again.
+- **Models (iteration 3):** installed models with size, quantisation, loaded state and port; `l`/`u` load
+  and unload, `p` opens a pull prompt (catalog search with the same resolver as `models pull`), `d`
+  deletes after a confirmation. A pull shows a progress bar, rate and ETA in place and moves to Downloads.
+- **Downloads (iteration 3):** every transfer with progress, pause and cancel (`x`), errors with the same
+  hints the CLI prints.
+- **Setup (iteration 4):** the managed-runtime operation as a stepper (the `SetupState` machine from
+  `src/engines/managed-environment.ts`); when a step needs elevation it shows the exact command to run in
+  another shell and waits, exactly like the CLI's `manual` strategy.
 
 ### How it is built
 
-- `src/tui/`: an Ink app with one screen component per tab, a small store fed by `CoreLink` and
-  `SseEvents` (snapshot first, then events; `resync` refetches), and the same `ModelInstaller` and
-  catalog seams the commands use. No URL, token or HTTP outside `src/core-link/`.
-- Rendering: box-drawing frames, a 16-colour palette with truecolour when the terminal advertises it,
-  graceful fallback to plain ASCII when `NO_COLOR` or `TERM=dumb`, layout that reflows on resize down
-  to 80 columns and hides the sidebar below that.
-- Keys follow the footer; `?` opens a help overlay; `q` and `Esc` leave without stopping anything.
-- Tests: the Ink app under `ink-testing-library` with a fake `CoreLink` (as atomic-agent tests its TUI),
-  plus a runtime-compat case that proves raw-mode stdin and resize events under the Bun runtime the
-  binary ships with, and under Windows Terminal.
-- Cost: React and Ink in the binary (a few MB next to the embedded SPA); accepted in the ADR.
+- `src/tui/`: `state.ts` (one reducer), `keys.ts` (one key table that feeds the footer, the help and the
+  handlers), `controller.ts` (the only side effects), `components/`, `screens/` (one per tab), `app.tsx`,
+  `run-tui.tsx`. The command loads it with a dynamic `import()`, so plain commands never load React.
+- Data: `watchDaemon` (`src/core-link/watch.ts`) attaches when a daemon runs, follows its events
+  (snapshot first; `STATUS_EVENTS` refetch), and attaches again after a restart, found by `health()`.
+  Actions go through the functions the commands use: `startDaemon`/`stopDaemon`, `setConfigValue`,
+  `runChecks`, `followLog`. No URL, token or HTTP outside `src/core-link/`, and nothing written to
+  stdout or stderr around the frame (attach takes the UI's logger).
+- Rendering: Ink's alternate screen (the shell's scrollback returns untouched), rounded box frames, the
+  16 named colours, off under `NO_COLOR`, `--no-color` or a non-colour terminal. Every card and log line
+  is one line, cut with `…` at the frame, and lists render only what fits, since Ink cannot clip a frame
+  taller than the terminal; below 40×12 the screen asks for a bigger terminal.
+- Tests: pure tables for the reducer, keys (every footer hint must do something) and model; the Ink app
+  on `test/helpers/fake-terminal.ts` (a TTY-like stdin and stdout of a fixed size); the controller on the
+  fake `CoreLink`; a contract test that bare `atc` on a terminal opens it and `q` leaves with the daemon
+  running; Ink itself under Node and `bun test` (runtime-compat); and the compiled binary in a real
+  pseudo-terminal (e2e, POSIX). Windows Terminal is checked by hand.
 
 ## Cross-cutting work
 

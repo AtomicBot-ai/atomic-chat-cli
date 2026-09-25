@@ -1,41 +1,25 @@
 /** `start`, `stop`, `restart`, `status`: the background daemon from a command's point of view. */
 
-import { inspectLock } from '@atomic-chat/core/host'
 import { AtcError, defineCommand } from '../cli/index.js'
 import type { CommandContext } from '../cli/index.js'
-import { readDaemonRecord, waitForDaemonReady } from '../core-link/index.js'
-import type { CoreLink } from '../core-link/index.js'
+import {
+  attachIfRunning,
+  describeDaemon,
+  readDaemonRecord,
+  startDaemon,
+  stopDaemon,
+  waitForRelease,
+} from '../core-link/index.js'
+import type { CoreLink, DaemonDescription } from '../core-link/index.js'
 import { formatDuration } from '../output/index.js'
 
-async function attached(ctx: CommandContext): Promise<CoreLink | undefined> {
-  try {
-    return await ctx.core.attach({ launch: false })
-  } catch (error) {
-    if (error instanceof AtcError && error.code === 'ATC_DAEMON_NOT_RUNNING') return undefined
-    throw error
-  }
-}
+const attached = (ctx: CommandContext): Promise<CoreLink | undefined> =>
+  attachIfRunning((o) => ctx.core.attach(o))
 
-async function describe(ctx: CommandContext, link: CoreLink) {
-  const [snapshot, record] = await Promise.all([link.snapshot(), readDaemonRecord(ctx.paths.daemonRecord)])
-  return {
-    running: true as const,
-    pid: snapshot.pid,
-    core_version: snapshot.version,
-    atc_version: record?.atc_version ?? null,
-    instance_id: snapshot.instance_id,
-    started_at: record?.started_at ?? null,
-    uptime_ms: record ? ctx.now().getTime() - record.started_at : null,
-    data_folder: snapshot.data_folder,
-    api: snapshot.server,
-    admin_url: record?.admin_url ?? null,
-    state: record?.state ?? null,
-    sessions: snapshot.sessions.map((s) => ({ provider: s.provider, model_id: s.model_id, port: s.port })),
-    clients: snapshot.clients.map((c) => c.name),
-  }
-}
+const describe = (ctx: CommandContext, link: CoreLink): Promise<DaemonDescription> =>
+  describeDaemon(link, ctx.paths.daemonRecord, ctx.now)
 
-function printStatus(ctx: CommandContext, s: Awaited<ReturnType<typeof describe>>): void {
+function printStatus(ctx: CommandContext, s: DaemonDescription): void {
   ctx.out.kv([
     ['daemon', `running (pid ${s.pid}${s.uptime_ms !== null ? `, up ${formatDuration(s.uptime_ms)}` : ''})`],
     ['versions', `atc ${s.atc_version ?? '?'}, core ${s.core_version}`],
@@ -77,8 +61,7 @@ export const startCommand = defineCommand({
     const args: string[] = []
     if (inv.values['admin'] === false) args.push('--no-admin')
     if (typeof inv.values['admin-port'] === 'string') args.push('--admin-port', inv.values['admin-port'])
-    const link = await ctx.core.attach({ launch: true, daemonArgs: args })
-    await waitForDaemonReady(ctx.paths.daemonRecord, link.endpoint.instanceId)
+    const link = await startDaemon((o) => ctx.core.attach(o), ctx.paths, args)
     const s = await describe(ctx, link)
     ctx.out.result({ started: true, ...s }, () => {
       ctx.out.success('daemon started')
@@ -88,22 +71,6 @@ export const startCommand = defineCommand({
     return 0
   },
 })
-
-export const STOP_TIMEOUT_MS = 30_000
-
-export async function waitForRelease(
-  ctx: CommandContext,
-  instanceId: string,
-  timeoutMs = STOP_TIMEOUT_MS
-): Promise<boolean> {
-  const deadline = ctx.now().getTime() + timeoutMs
-  while (ctx.now().getTime() < deadline) {
-    const state = await inspectLock(ctx.paths.layout)
-    if (state.kind !== 'owned' || state.record.instance_id !== instanceId) return true
-    await new Promise((r) => setTimeout(r, 200))
-  }
-  return false
-}
 
 export const stopCommand = defineCommand({
   name: 'stop',
@@ -120,10 +87,11 @@ export const stopCommand = defineCommand({
       return 0
     }
     const instanceId = link.endpoint.instanceId
-    await link.withLease('atc stop', async (l, clientId) => {
-      await l.shutdown({ client_id: clientId, ...(inv.values['force'] === true ? { force: true } : {}) })
+    let released = await stopDaemon(link, ctx.paths, {
+      client: 'atc stop',
+      force: inv.values['force'] === true,
+      now: ctx.now,
     })
-    let released = await waitForRelease(ctx, instanceId)
     if (!released && inv.values['kill'] === true) {
       const record = await readDaemonRecord(ctx.paths.daemonRecord)
       if (record) {
@@ -131,7 +99,7 @@ export const stopCommand = defineCommand({
         if (process.platform === 'win32')
           await ctx.host.exec('taskkill', ['/PID', String(record.pid), '/T', '/F'])
         else process.kill(record.pid, 'SIGKILL')
-        released = await waitForRelease(ctx, instanceId, 5_000)
+        released = await waitForRelease(ctx.paths, instanceId, ctx.now, 5_000)
       }
     }
     if (!released)

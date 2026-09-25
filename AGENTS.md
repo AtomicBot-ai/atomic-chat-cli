@@ -23,8 +23,9 @@ admin on loopback, the hardware facts the core cannot measure itself, and the pr
 managed runtimes. `atc` is a separate product from the desktop app; they share the core and nothing else.
 
 This iteration is the **scaffold**: real where the core already does the work (daemon lifecycle, health,
-admin shell, config, doctor), stubs that exit 3 everywhere else. `src/cli/not-implemented.ts` is the map of
-what is stubbed and when it lands.
+admin shell, config, doctor, the terminal UI), stubs that exit 3 everywhere else. `src/cli/not-implemented.ts`
+is the map of what is stubbed and when it lands. Bare `atc` on an interactive terminal opens the terminal UI
+(Ink, `src/tui/`); anywhere else it prints help and exits 2 — scripts never get a screen.
 
 ---
 
@@ -43,6 +44,7 @@ what is stubbed and when it lands.
 | `src/daemon/`           | The long-lived process: core in-process, admin, hardware push, host-step loop, run record; the spawner. |
 | `src/host/`             | `exec`, host facts, elevation strategies, host-step executor and helper, hardware prober, service templates, ports. |
 | `src/admin/`            | The admin BFF: gates, token, sessions, allowlisted proxy, SSE relay, embedded SPA. `contract/` is browser-safe. |
+| `src/tui/`              | The terminal UI (Ink, `.tsx`): one reducer, one key table, a controller that is its only side effect, a screen per tab. Loaded lazily by `atc tui`. |
 | `src/models/` `src/engines/` `src/update/` `src/doctor/` | Interfaces, pure parsers and tables for later iterations; the doctor's check table. |
 | `packages/admin-ui/`    | The web admin SPA (React, Vite, Tailwind), copied and adapted from the desktop `web-app`.           |
 | `test/`                 | `contract/` (fake core and real core), `e2e/` (the built program), `runtime-compat/`, `helpers/`, `setup.ts`. |
@@ -73,8 +75,8 @@ what is stubbed and when it lands.
 8. **Tests next to the source** (`foo.ts` ↔ `foo.test.ts`), table-driven for policy code.
 9. **Lifted admin files keep their provenance header** (`// Lifted from Atomic-Chat/web-app/src/<path> @
    <commit>; adapted: …`) and a line in `packages/admin-ui/LIFTED.md`.
-10. **Every dependency needs a reason.** Runtime deps today: `atomic-chat-core`. Adding one needs an
-    explicit "ok" from the owner and an ADR.
+10. **Every dependency needs a reason.** Runtime deps today: `atomic-chat-core`; `ink` and `react`, for
+    `src/tui/` only. Adding one needs an explicit "ok" from the owner and an ADR.
 11. **Do only what was asked.** No drive-by refactors; propose them. **Never commit unless asked.**
 12. **Record non-trivial decisions** as a file in `docs/decisions/` (template `_TEMPLATE.md`) plus one
     line in `INDEX.md`, in the same session.
@@ -124,12 +126,14 @@ otherwise fails with `ATC_CONSENT_REQUIRED`.
 
 Five layers (`vitest.config.ts`, details in `docs/testing.md`):
 
-- **unit** — `src/**/*.test.ts`, next to the code, pure tables and fakes.
+- **unit** — `src/**/*.test.{ts,tsx}`, next to the code, pure tables and fakes; the Ink app on
+  `test/helpers/fake-terminal.ts`.
 - **contract** — `test/contract/`: commands against `FakeCoreLink` (`commands.test.ts`); the daemon against
   a real `AtomicCore` in a temporary folder (`daemon.test.ts`): lock, token, run record, admin auth, proxy, SSE.
-- **e2e** — `test/e2e/`: the built program (`dist/bin/atc-*` when present, else `node dist/bin.js`).
-- **runtime-compat** — `test/runtime-compat/`: Node behaviours the daemon relies on, under vitest **and**
-  `bun test`.
+- **e2e** — `test/e2e/`: the built program (`dist/bin/atc-*` when present, else `node dist/bin.js`); the
+  terminal UI in a real pseudo-terminal (Python's `pty`, POSIX).
+- **runtime-compat** — `test/runtime-compat/`: Node behaviours the daemon relies on, and Ink's raw keys and
+  resize, under vitest **and** `bun test`.
 - **ui** — `packages/admin-ui`, its own vitest (jsdom).
 
 `test/setup.ts` points `ATC_DATA_FOLDER` and `ATOMIC_CORE_DATA_FOLDER` at a fresh `mkdtemp` per worker;

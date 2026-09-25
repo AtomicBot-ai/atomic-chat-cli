@@ -1,18 +1,6 @@
+import { STATUS_EVENTS } from '@contract'
 import { useCoreEvents } from '@/services/events'
 import { useStatusStore } from '@/stores/status-store'
-
-/** The relay events after which `/api/status` may answer differently, plus the relay's own `resync`. */
-export const STATUS_EVENTS = [
-  'resync',
-  'session:started',
-  'session:unloaded',
-  'session:died',
-  'server:started',
-  'server:stopped',
-  'server:bind-failed',
-  'atc:status',
-  'atc:host-step',
-] as const
 
 export function useAdminStatus() {
   const status = useStatusStore((state) => state.status)

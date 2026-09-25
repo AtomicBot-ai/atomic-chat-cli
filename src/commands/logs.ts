@@ -1,11 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { AtcError, defineCommand, plannedPartial } from '../cli/index.js'
-
-export function tailLines(text: string, count: number): string[] {
-  const lines = text.split(/\r?\n/)
-  if (lines.at(-1) === '') lines.pop()
-  return lines.slice(-count)
-}
+import { tailLines } from '../daemon/index.js'
 
 export const logsCommand = defineCommand({
   name: 'logs',

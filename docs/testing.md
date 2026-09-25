@@ -7,13 +7,13 @@ runs in an isolated data folder; none reaches the network or starts a real engin
 
 | Project | Files | Runs | What it proves | Timeout |
 | --- | --- | --- | --- | --- |
-| `unit` | `src/**/*.test.ts`, next to the code | `npm test` | Pure policy by table: flag splitting, config parsers and precedence, elevation selection, `nvidia-smi` parsing, service templates, semver, the stub registry vs the tree. Fakes for I/O. | 5 s (20 s on Windows: the first PowerShell identity probe on a cold runner) |
+| `unit` | `src/**/*.test.{ts,tsx}`, next to the code | `npm test` | Pure policy by table: flag splitting, config parsers and precedence, elevation selection, `nvidia-smi` parsing, service templates, semver, the stub registry vs the tree, the TUI's reducer and key table. Fakes for I/O. The Ink app renders on `fake-terminal.ts` in Ink's debug mode (one full frame per write). | 5 s (20 s on Windows: the first PowerShell identity probe on a cold runner) |
 | `contract` | `test/contract/**/*.test.ts` | `npm test` | `commands.test.ts`: commands against `FakeCoreLink` — what they print, what they call, how they fail. `daemon.test.ts`: `startDaemon` with a **real** `AtomicCore` in a temp folder — the lock and token the core writes, `daemon.json`, admin 401/204/200, the proxy allowlist (403), Bearer auth, SSE relay, attach + lease, the foreign-owner check, clean shutdown. | 60 s |
-| `e2e` | `test/e2e/**/*.test.ts` | `npm run test:e2e` | The built program end to end in a temp data folder: `version --json`, `--help`, exit 2 for unknown commands, exit 3 + JSON error for a stub, `start --admin-port 0` → `status` → `admin status` → second `start` is a no-op → `stop`, `completion bash`. | 120 s |
-| `runtime-compat` | `test/runtime-compat/**/*.test.ts` | `npm run test:runtime-compat` **and** `bun test test/runtime-compat` | The Node behaviours the daemon relies on, pinned under both runtimes: a detached `unref`ed child survives the parent, gzip/base64 round trip (the embedded assets), SSE chunks arrive one by one. No setup file: it must not depend on the repo's test harness. | 60 s |
+| `e2e` | `test/e2e/**/*.test.ts` | `npm run test:e2e` | The built program end to end in a temp data folder: `version --json`, `--help`, exit 2 for unknown commands, exit 3 + JSON error for a stub, `start --admin-port 0` → `status` → `admin status` → second `start` is a no-op → `stop`, `completion bash`. `tui.test.ts`: without a terminal `atc tui` exits 2 and bare `atc` prints help; in a 100×30 pseudo-terminal (Python's `pty`, POSIX only) bare `atc` opens the screen, answers keys, and leaves the alternate screen on `q` with exit 0. | 120 s |
+| `runtime-compat` | `test/runtime-compat/**/*.test.ts` | `npm run test:runtime-compat` **and** `bun test test/runtime-compat` | The Node behaviours the daemon relies on, pinned under both runtimes: a detached `unref`ed child survives the parent, gzip/base64 round trip (the embedded assets), SSE chunks arrive one by one, and Ink renders, reads raw keys, follows `resize` and restores raw mode and the screen (`ink.test.ts`, no JSX). No setup file: it must not depend on the repo's test harness. | 60 s |
 | `ui` | `packages/admin-ui` (its own vitest, jsdom) | `npm run test:ui` | Components and hooks of the SPA against a fake hub; see `docs/admin-ui.md`. | — |
 
-`npm run test:coverage` runs unit + contract with v8 coverage over `src/**/*.ts`, excluding tests,
+`npm run test:coverage` runs unit + contract with v8 coverage over `src/**/*.{ts,tsx}`, excluding tests,
 `index.ts` files, `src/admin/contract/`, `src/bin.ts` and generated files. Coverage floors are iteration 6.
 
 ## Isolation
@@ -32,6 +32,7 @@ folder from these, so a test can never touch `~/.local/share/atomic-chat-cli` or
 | `test-context.ts` — `fakeCoreFactory(link, { running })` | A `CoreLinkFactory` that records whether a command launched the daemon. |
 | `fake-core-link.ts` — `fakeCoreLink(snapshotOverrides?)` | An in-memory `CoreLink`: records `calls` `{method, path, body}`, answers from a scripted `CoreSnapshot` (`snapshotValue`), counts `shutdowns`, and `emit(message)` pushes an event to subscribers. |
 | `tmp-data-folder.ts` — `tmpDataFolder(prefix?)` | `{ paths, cleanup }` — a fresh `<tmp>/data` with `atcPathsFor` applied. |
+| `fake-terminal.ts` — `fakeTerminal(columns?, rows?)` | TTY-like `stdin` (`press(data)`, `KEYS`) and `stdout` (`writes`, `lastFrame()`, `text()`, `resize()`) of a fixed size — Ink would otherwise ask the real terminal — plus `streams` for `AtcIo.terminal`, `stripTerminal()` and `eventually()`. |
 | `deps.ts` | Type re-exports (`CoreLinkFactory`, `RunCliDeps`) so helpers import from one place. |
 | `src/io.ts` — `recordingIo()` | The `AtcIo` tests use; lives in `src/` because commands are typed against it. |
 
@@ -65,6 +66,14 @@ npm run build:bin && npm run test:e2e      # the compiled binary (Bun 1.3.10)
 The test starts a real daemon in a temporary folder and stops it with `stop --force --kill` in `afterAll`;
 a failing run can leave a daemon behind for up to the stop timeout — `atc stop --data-folder <tmp>` if you
 find one.
+
+## The terminal UI by hand
+
+CI drives the compiled binary in a pseudo-terminal on Linux and macOS only; Windows has no `pty` module and
+the runners no ConPTY driver. Before a release, and after any change under `src/tui/` or to Ink, run the
+Windows binary in Windows Terminal (and once in the legacy console): bare `atc` opens the screen, the
+number keys and Tab switch screens, `↑↓` and Enter work on Config, a resize reflows, `q` leaves and the
+prompt comes back clean. `atc | more` must still print help.
 
 ## `bun test test/runtime-compat`
 

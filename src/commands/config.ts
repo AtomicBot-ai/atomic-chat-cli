@@ -1,15 +1,5 @@
 import { AtcError, defineCommand, plannedPartial } from '../cli/index.js'
-import {
-  checkValue,
-  coerceValue,
-  defaultConfig,
-  fieldFor,
-  FIELDS,
-  getAt,
-  setAt,
-  writeConfigFile,
-} from '../config/index.js'
-import type { AtcConfig } from '../config/index.js'
+import { fieldFor, FIELDS, getAt, setConfigValue, unsetConfigValue } from '../config/index.js'
 
 const ENGINE_KEY = /^engine\./
 
@@ -54,18 +44,16 @@ const set = defineCommand({
   run: async (inv, ctx) => {
     const [key, raw] = inv.positionals as [string, string]
     if (ENGINE_KEY.test(key)) engineStub(key)
-    const field = fieldFor(key)
-    if (!field)
+    if (!fieldFor(key))
       throw new AtcError('ATC_USAGE', `Unknown config key '${key}'.`, { hint: 'see `atc config list`' })
-    const value = coerceValue(field, raw)
-    const problem = checkValue(field, value)
-    if (problem) throw new AtcError('ATC_CONFIG_INVALID', problem)
-    const current = await ctx.config()
-    const fileConfig: AtcConfig = current.file?.config ?? defaultConfig()
-    setAt(fileConfig as unknown as Record<string, unknown>, key, value)
-    await writeConfigFile(ctx.paths.configFile, fileConfig, current.file?.extra ?? {})
+    const { value, overriddenByEnv } = await setConfigValue(
+      ctx.paths.configFile,
+      await ctx.config(),
+      key,
+      raw
+    )
     ctx.out.result({ key, value }, () => ctx.out.success(`${key} = ${JSON.stringify(value)}`))
-    if (current.sources[key] === 'env') ctx.out.warn(`an environment variable currently overrides ${key}`)
+    if (overriddenByEnv) ctx.out.warn(`an environment variable currently overrides ${key}`)
     return 0
   },
 })
@@ -77,16 +65,8 @@ const unset = defineCommand({
   run: async (inv, ctx) => {
     const key = inv.positionals[0] as string
     if (!fieldFor(key)) throw new AtcError('ATC_USAGE', `Unknown config key '${key}'.`)
-    const current = await ctx.config()
-    const fileConfig: AtcConfig = current.file?.config ?? defaultConfig()
-    const defaultValue = fieldFor(key)?.default
-    setAt(
-      fileConfig as unknown as Record<string, unknown>,
-      key,
-      defaultValue === undefined ? undefined : structuredClone(defaultValue)
-    )
-    await writeConfigFile(ctx.paths.configFile, fileConfig, current.file?.extra ?? {})
-    ctx.out.result({ key, value: defaultValue ?? null }, () => ctx.out.success(`${key} reset`))
+    const { value } = await unsetConfigValue(ctx.paths.configFile, await ctx.config(), key)
+    ctx.out.result({ key, value }, () => ctx.out.success(`${key} reset`))
     return 0
   },
 })

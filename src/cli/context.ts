@@ -28,8 +28,11 @@ import type { CommandSpec } from './command.js'
 import type { GlobalFlags } from './flags.js'
 
 export interface CoreLinkFactory {
-  /** Attach to the daemon owning the data folder; with `launch`, start one when there is none. */
-  attach(options?: { launch?: boolean; daemonArgs?: readonly string[] }): Promise<CoreLink>
+  /**
+   * Attach to the daemon owning the data folder; with `launch`, start one when there is none.
+   * `log` replaces the command's stderr logger (the terminal UI must not write under its frame).
+   */
+  attach(options?: { launch?: boolean; daemonArgs?: readonly string[]; log?: Logger }): Promise<CoreLink>
 }
 
 export interface ContextDeps {
@@ -90,10 +93,10 @@ export function createContext(deps: ContextDeps): CommandContext {
         launch: options.launch === true,
         clientName: 'atc',
         pid,
-        log,
+        log: options.log ?? log,
         spawnDaemon: async () => {
           if (!deps.spawnDaemon) throw new AtcError('ATC_INTERNAL', 'this context cannot start a daemon')
-          await deps.spawnDaemon(paths, log, options.daemonArgs ?? [])
+          await deps.spawnDaemon(paths, options.log ?? log, options.daemonArgs ?? [])
         },
       }),
   }

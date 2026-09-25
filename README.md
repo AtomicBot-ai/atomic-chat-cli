@@ -32,6 +32,7 @@ atc serve Qwen/Qwen3-8B-GGUF   # engine → model → daemon → API URL     (st
 What runs today:
 
 ```sh
+atc                  # on a terminal: the live terminal UI — Overview, Logs, Config, Doctor (? for keys)
 atc start            # the daemon (core + web admin) in the background; it outlives this command
 atc status           # pid, versions, API endpoint, loaded models, admin URL   (--json for one document)
 atc admin            # prints http://127.0.0.1:1338/#token=… and opens a browser
@@ -54,7 +55,7 @@ atc stop             # graceful; --force while other commands are attached, --ki
 | Access | `atc api start\|stop\|status` | The OpenAI-compatible API on the running core | stub (iteration 2) |
 | Access | `atc api key show\|set\|rotate\|clear` | The API key (a core setting) | stub (iteration 3) |
 | Access | `atc admin [open\|status\|token]` | Login URL, where the admin listens, token rotation | works |
-| Access | `atc tui` | Interactive terminal screen over the daemon: status, models, downloads, logs | stub (iteration 5) |
+| Access | `atc tui` | Full-screen terminal UI (what bare `atc` opens on a terminal): daemon, log, config, doctor | works (models, downloads, setup screens come with iterations 3–4) |
 | System | `atc config get\|set\|unset\|list\|path` | `atc` settings | works (`engine.*` keys are a stub) |
 | System | `atc doctor` | Diagnostic table with hints | works (GPU: NVIDIA only; Docker check skipped) |
 | System | `atc service install\|uninstall\|status\|start\|stop` | The daemon as an OS service | stub (iteration 6) |
@@ -63,6 +64,9 @@ atc stop             # graceful; --force while other commands are attached, --ki
 
 Hidden: `atc daemon` (the foreground daemon that `start` spawns) and `atc host-step exec <request.json>`
 (the privileged helper for managed runtimes).
+
+Bare `atc` opens the terminal UI only on an interactive terminal; in a pipe, a script, a service unit or
+with `--json` it prints this help and exits 2, as before. Leaving the UI (`q`) never stops the daemon.
 
 Global flags go anywhere on the line: `--json`, `-v/--verbose`, `-q/--quiet`, `-y/--yes`,
 `--data-folder <path>`, `--no-color`, `-h/--help`, `--version`. With `--json` a command prints exactly one

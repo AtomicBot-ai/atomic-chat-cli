@@ -7,7 +7,7 @@ export default defineConfig({
       {
         test: {
           name: 'unit',
-          include: ['src/**/*.test.ts'],
+          include: ['src/**/*.test.{ts,tsx}'],
           environment: 'node',
           setupFiles: ['test/setup.ts'],
           // The first PowerShell identity probe on a cold Windows CI runner alone takes ~5 s.
@@ -43,9 +43,9 @@ export default defineConfig({
     ],
     coverage: {
       provider: 'v8',
-      include: ['src/**/*.ts'],
+      include: ['src/**/*.{ts,tsx}'],
       exclude: [
-        'src/**/*.test.ts',
+        'src/**/*.test.{ts,tsx}',
         'src/**/index.ts',
         'src/admin/contract/**',
         'src/bin.ts',

@@ -91,6 +91,23 @@ otherwise `atc stop` would always need `--force`. `atc stop` posts `/shutdown { 
 its own lease, waits up to 30 s for the lock to change hands, and only with `--kill` sends `SIGKILL`
 (`taskkill /T /F` on Windows).
 
+## The terminal UI is a client
+
+Bare `atc` on an interactive terminal (stdin and stdout TTYs, `TERM` not `dumb`, no `--json`/`--help`)
+runs `atc tui`; anywhere else it prints help and exits 2. The UI is one more client of the same daemon, in
+the foreground process, and changes nothing above:
+
+- It attaches with `launch: false` and never holds a lease, so it neither starts a daemon on its own nor
+  makes `atc stop` need `--force`. `watchDaemon` (`src/core-link/watch.ts`) follows the event stream and
+  checks `health()` every 2 s: a daemon that stopped shows as down, and a restarted one (new control
+  port, new token) is attached again, which `SseEvents` alone would not do.
+- Its keys call what the commands call: `startDaemon` and `stopDaemon` under an `atc tui` lease
+  (`src/core-link/lifecycle.ts`), `setConfigValue` (`src/config/edit.ts`), `runChecks`, and
+  `followLog` for the daemon log (`src/daemon/log-follow.ts`).
+- Ink owns the terminal while it runs (raw mode, the alternate screen), so nothing else may write to it:
+  `CoreLinkFactory.attach` takes the UI's logger and its messages go to the status line. `q`, Esc, Ctrl+C
+  or SIGTERM unmount it and give the terminal back; the daemon keeps running.
+
 ## Daemon startup
 
 `src/daemon/daemon.ts`, `startDaemon()`:
@@ -209,6 +226,7 @@ an export request in the core branch.
 `config engine.*`, `host-step recipes`). A unit test keeps the registry and the command tree in agreement,
 and `docs/commands.md` (generated) shows the status of every command. The iteration map: **I2** daemon
 lifecycle, `serve`/`run`, `api start|stop`; **I3** models and API keys; **I4** engines, `setup`, managed
-environments, elevation; **I5** admin pages (API, models, engines) and non-loopback consent; **I6** service,
+environments, elevation; **I5** admin pages (API, models, engines) and non-loopback consent (the terminal
+UI shipped early and gains a screen in I2–I4); **I6** service,
 update apply, doctor completion; **I7** admin setup wizard, logs, settings, hardware; **I8** signing and
 notarisation.

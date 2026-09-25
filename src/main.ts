@@ -8,6 +8,7 @@ import {
   describeError,
   errorBody,
   exitCodeFor,
+  opensTui,
   parseInvocation,
   renderHelp,
   resolveCommand,
@@ -34,7 +35,11 @@ export async function runCli(argv: readonly string[], io: AtcIo, deps: RunCliDep
     return EXIT.OK
   }
   const root = deps.root ?? ROOT
-  const resolved = resolveCommand(root, rest)
+  // Bare `atc` on an interactive terminal opens the terminal UI; everywhere else it prints help.
+  const tui =
+    root.subcommands?.some((c) => c.name === 'tui') === true &&
+    opensTui({ rest, globals, isTTY: io.isTTY, env: io.env })
+  const resolved = resolveCommand(root, tui ? ['tui'] : rest)
   const help = renderHelp(resolved.spec, resolved.path, { width: io.columns })
   if (globals.help) {
     io.stdout(help)

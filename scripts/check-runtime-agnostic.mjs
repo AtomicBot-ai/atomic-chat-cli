@@ -54,7 +54,7 @@ function* walk(dir) {
   for (const name of readdirSync(dir)) {
     const p = join(dir, name)
     if (statSync(p).isDirectory()) yield* walk(p)
-    else if (/\.(ts|mts|js|mjs)$/.test(name)) yield p
+    else if (/\.(ts|tsx|mts|js|mjs)$/.test(name)) yield p
   }
 }
 
