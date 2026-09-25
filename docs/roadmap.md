@@ -30,7 +30,9 @@ The product's core promise. **Goal:** `atc serve <model>` on a clean server ends
   Hugging Face `owner/repo` through the core's `downloadHfModel`), start the daemon, load the model,
   start the public API, print the URL. Returns once the model answers; the daemon keeps running.
 - `run`: the same in the foreground for Docker and systemd; `--no-model` runs the daemon alone; SIGTERM
-  unloads and stops cleanly.
+  unloads and stops cleanly. Inside a container it serves engines that run in that container (llama.cpp
+  with `--gpus`); managed runtimes stay host-only (see
+  [Managed runtimes on a server](#managed-runtimes-on-a-server)).
 - `api start|stop|status` over the core's `/server` routes; `api.autoStart` and `models.autoLoad` honoured
   at daemon start (`PublicServerKeeper`).
 - Replace an idle daemon of an older `atc`/core after an upgrade instead of refusing to attach.
@@ -50,6 +52,8 @@ The product's core promise. **Goal:** `atc serve <model>` on a clean server ends
   `atomic-chat-conf/models/recommended.json` (hardware tiers), cached under `<data>/atc/cache/` with ETag
   and a one-hour TTL, offline fallback.
 - `ModelResolver`: `owner/repo`, `owner/repo:file.gguf`, catalog alias, `auto` by VRAM tier; `--quant`.
+  GGUF only: a repository with no GGUF files is refused with a hint at `--engine tensorrt-llm`, whose
+  models the core resolves and downloads itself (iteration 4b).
 - `ModelInstaller` on the core's `Downloader` and `ModelRegistry` (`@atomic-chat/core/models`,
   `/downloads`): disk preflight through `POST /disk/available`, resume, sha256, `model.yml`, optional
   `mmproj`; progress on the terminal and as `atc:download` events for the admin and the TUI.
@@ -63,22 +67,70 @@ The product's core promise. **Goal:** `atc serve <model>` on a clean server ends
 ### Iteration 4 — engines, setup, the managed runtime
 
 **Goal:** `atc setup` prepares a machine, including TensorRT-LLM through Docker, with consent and
-privileges handled honestly.
+privileges handled honestly. It lands in two parts: 4a waits for nobody; 4b follows the core's TensorRT
+milestones (status, gates and server specifics under
+[Managed runtimes on a server](#managed-runtimes-on-a-server)).
+
+**4a — engines and hardware.**
 
 - `engines list|install|status|rm` over the core's backend routes; `hardware show|refresh` with AMD
   (`rocm-smi`, sysfs) and Intel probing added to NVIDIA.
-- `setup`: probe → plan → consent → operation, following the core's `/environments` routes; relogin and
-  reboot states resume on the next `atc` start.
-- Real elevation strategies: `sudo` on a terminal, `pkexec` in a desktop session, UAC on Windows; the
-  helper (`atc host-step exec`) runs the recipes the core exports, verifies their digests, and never
-  touches the control API.
-- `doctor`: Docker/WSL and driver checks.
-- **Depends on the core:** the `feat/tenzor-rt` branch merged over 0.5.x, `provisionerFor()` implemented,
-  recipes with digests and step parameters exported through `@atomic-chat/core/host`, a `managedRuntimes`
-  option on `AtomicCore.create` for host facts. `atc` will target that core version exactly.
+- Real elevation strategies: `sudo` on a terminal, `pkexec` in a desktop session, UAC on Windows (the
+  table in `architecture.md`); they are testable against a fake helper before any recipe exists.
+- `doctor`: read-only Docker, NVIDIA driver, Container Toolkit and WSL checks.
+
+**4b — the managed runtime.**
+
+- `setup --tensorrt`: `POST /environments/probe` → print the `RequirementPlan` (`system_changes`, download
+  and disk estimates, whether elevation, a sign-out or a reboot may follow, blockers) → consent → begin
+  with one `request_id` per invocation, so a retried command joins the operation instead of starting
+  another → follow `environment:operation` with a byte progress bar (the image is ~16 GB) → `ready`. A
+  machine whose Docker already runs containers on the GPU is adopted as it is: no host step, no prompt.
+- Consent binds a plan digest. Interactively `--yes` approves the plan just printed; for configuration
+  management a new `--approve sha256:<plan>` approves only that exact plan, and a host that changed in
+  between answers `MANAGED_PLAN_CHANGED` instead of running something else.
+- The one privileged step goes through `atc host-step exec` and the elevation table; the helper runs the
+  recipe the core exports, verifies its digest and never touches the control API. `relogin-required` has
+  a server catch: the `docker` group must reach the **daemon's** process, which inherits its groups from
+  whoever started it. After `usermod -aG docker` that takes a new login and then `atc restart`, or a
+  restart of a system service (`SupplementaryGroups=docker` in the unit makes it immediate); a
+  `systemd --user` service keeps its old groups until the user manager restarts. `setup --resume <op>`
+  re-probes and continues; the core never re-elevates blindly.
+- Windows: the helper only enables WSL and the Virtual Machine Platform (UAC); after the reboot the next
+  `atc start` resumes the same operation. The distribution is imported as the original user, so the
+  daemon runs in that user's session — never elevated, never as a LocalSystem service.
+- Managed engines get their own lifecycle: an update stages and verifies the candidate image, unloads the
+  resident model, smoke-loads a model the person names, activates, and keeps the previous digest for
+  rollback; `engines rm tensorrt-llm [--keep-models]` stops only owned containers and removes only owned
+  data. The environment cannot be removed while an engine is installed, and nothing ever touches the
+  system Docker, foreign containers, other WSL distributions or the driver. `setup --cancel <op>` is
+  cooperative: during an indivisible host step it is recorded and honoured at the next safe boundary.
+- Models for a managed engine are not GGUF but Hugging Face safetensors snapshots. The core resolves a
+  repository first — `config.json` architectures against the engine's list, the quantisation's minimum
+  compute capability, weights plus a KV reserve against free VRAM — and refuses before any download, with
+  the numbers; it then downloads into the scope's `managed-runtimes/artifacts/`, gated repositories with a
+  token the core holds. So `models pull` branches on the engine, `models resolve <repo> --engine
+  tensorrt-llm` prints the verdict, and `models list` shows both stores.
+- `serve --engine tensorrt-llm <repo>`: the session is a container published on `127.0.0.1`, the public
+  API forwards to it as it does to `llama-server`, the routes are those the adapter declares (chat,
+  completions, responses), and `config engine.tensorrt-llm.*` carries context length, output limit and
+  the KV-cache fraction.
+- **The residency rule** sits above every engine's own auto-unload: before any local GPU load (llama.cpp
+  CUDA or Vulkan, sd.cpp, a managed container) the core stops every other GPU session of the scope,
+  generating or not, and waits for confirmed exit. Once the core applies it (card T11b) it holds on servers
+  with no managed engine too: an image job on sd.cpp unloads the chat model on the same GPU. `models load`
+  and `serve` say what they are about to evict; `status` and the admin show it. The desktop app's core on
+  the same machine is an external consumer: neither evicts the other, and a clash ends in
+  `OUT_OF_MEMORY`. One GPU per model at first.
+- **Depends on the core:** the upstream milestones M1–M2 (Docker executor and watchdog, Linux and Windows
+  provisioning, model resolution and download, the TensorRT adapter), `feat/tenzor-rt` merged over 0.5.x,
+  and the host-facing changes listed under [Cross-cutting work](#cross-cutting-work). `atc` targets that
+  core version exactly.
 - Terminal UI: the Setup screen, the same operation as `atc setup` shown as a stepper.
-- **Done when:** on an Ubuntu box with an NVIDIA card, `atc setup --tensorrt` ends in `ready` after one
-  `sudo` prompt and one re-login, and `atc serve --engine tensorrt-llm <checkpoint>` answers.
+- **Done when:** on Ubuntu 24.04 with an NVIDIA card, `atc setup --tensorrt` ends in `ready` with no
+  prompt where a GPU Docker already works, and after one `sudo` prompt and one re-login on a clean box;
+  `atc serve --engine tensorrt-llm <repo>` answers on `/v1/chat/completions`; killing the daemon frees the
+  GPU within the watchdog's limit.
 
 ### Iteration 5 — the admin pages
 
@@ -97,17 +149,22 @@ Admin pages, lifted from the desktop web-app where possible (`docs/admin-ui.md`)
 ### Iteration 6 — service, update, doctor
 
 - `service install|uninstall|status|start|stop`: systemd (user and system), launchd, a Windows logon task,
-  with a wrapper-based Windows service to follow.
+  with a wrapper-based Windows service to follow. For managed runtimes the system unit carries
+  `SupplementaryGroups=docker` when Docker is present, so group access needs no re-login; on Windows the
+  daemon stays in the user's session, because the WSL distribution is per user.
 - `update` applies: download the asset for this platform, verify against `SHA256SUMS`, replace the binary
-  (rename on POSIX, move-aside on Windows), re-exec, tell a managed service to restart.
+  (rename on POSIX, move-aside on Windows), re-exec, tell a managed service to restart. A managed model
+  unloads across the restart and loads cold again; `update` says so before it starts.
 - `doctor` completes (proxy reachability, engine and model sanity), coverage floors in CI.
 - **Done when:** a fresh server goes from the installer to a service that survives a reboot, and
   `atc update` upgrades it in place.
 
 ### Iteration 7 — the admin's setup wizard, logs, settings, hardware
 
-- The managed-runtime wizard in the browser (`SetupState` stepper on live operations), the daemon log with
-  live tail, settings (proxy, telemetry, tokens), the hardware page with live GPU usage.
+- The managed-runtime wizard in the browser (`SetupState` stepper on live operations: requirements and
+  system changes, authorization, sign-out or restart, image download, verification), a model picker with
+  the core's compatibility verdict (curated tiers, a pasted repository), the daemon log with live tail,
+  settings (proxy, telemetry, tokens), the hardware page with live GPU usage.
 - **Done when:** iteration 4's setup can be driven end to end from the browser, including the
   elevation prompt shown as instructions when it cannot be automated.
 
@@ -202,15 +259,124 @@ S stop  R restart  a admin link  r refresh  ←→ screens  ? help  q quit
   running; Ink itself under Node and `bun test` (runtime-compat); and the compiled binary in a real
   pseudo-terminal (e2e, POSIX). Windows Terminal is checked by hand.
 
+## Managed runtimes on a server
+
+TensorRT-LLM (vLLM and SGLang later, on the same infrastructure) is designed in the desktop app's
+repository: architecture, flows, coding contracts and a 72-card backlog are on `Atomic-Chat@feat/tenzor-rt`
+in `docs/decisions/2026-09-22-*` (TensorRT-LLM and shared managed-text infrastructure) and the 2026-09-23
+amendment "Preserve deployment seams for a future containerized core"; the code lands on
+`atomic-chat-core@feat/tenzor-rt`. Those documents name "the CLI core" as the app's peer; `atc` is that
+scope. This section is what they mean on a server.
+
+### How it runs
+
+- The core owns everything but the privileged step: probe, plan, operation store, image pull by digest,
+  containers, their journal, recovery, the residency rule. One pinned upstream image
+  (`nvcr.io/nvidia/tensorrt-llm/release`, ~16 GB, never `latest`) is described by a descriptor that
+  `atomic-chat-conf` publishes under `runtimes/`: image and entrypoint digests, host recipes, supported
+  architectures, the quantisation matrix, curated models, minimum versions.
+- Linux uses the system Docker Engine, adopted as it is when `docker run --gpus` works, otherwise
+  installed by one enumerated host action, `linux.install-container-runtime` (vendor repositories,
+  `docker-ce`, `containerd.io`, `nvidia-container-toolkit`, `nvidia-ctk runtime configure`,
+  `docker.service`, the user into `docker`). It removes nothing and never installs the NVIDIA driver,
+  which stays a prerequisite. Windows uses an owned WSL2 distribution with its own Docker, driven through
+  `wsl.exe -d <distro> --exec`; no Docker Desktop, and other distributions are left alone.
+- A model container gets no Docker socket, no privileged mode, `--restart=no`, read-only model and
+  entrypoint mounts, a bounded `--shm-size`, one GPU and a port published on `127.0.0.1` only.
+  `trtllm-serve` enforces no API key: `atc`'s key protects port 1337, not the engine's loopback port,
+  which any local user of a shared host can reach.
+- A watchdog, not a supervisor: the container's entrypoint is a verified shell script that kills
+  `trtllm-serve` once the heartbeat file the core touches every few seconds goes stale, and it cannot be
+  switched off. A dead daemon frees the GPU within the limit; the next one reconciles the journal before
+  offering a session. There is no policy yet for handing a running container to the next daemon, so
+  `atc restart` and `atc update` unload a managed model and `models.autoLoad` brings it back cold;
+  `atc stop` is a full exit and stops owned containers.
+- The environment is one per machine user, in `<dataDir>/atomic-managed-runtimes/` (outside every data
+  folder; `ATOMIC_CORE_MANAGED_ROOT` for tests) and shared with the desktop app's core; containers,
+  journals, caches and model snapshots stay per scope in `<data>/atomic-core/managed-runtimes/`. Mutations
+  take a file lock in the shared root, and the host-step executor already acts only on its own core's
+  operations, so a machine running both never shows two prompts.
+
+### Topologies
+
+| `atc` runs | Engines run | Status |
+| --- | --- | --- |
+| On the host: a login session or systemd | In the system Docker | The upstream Linux path; iteration 4b |
+| On Windows, in the user's session | In the owned WSL distribution | The upstream Windows path; iteration 4b |
+| In a container (`atc run`, `--gpus`) | Inside that container (llama.cpp) | Iteration 2; no managed runtime |
+| In a container with the host's Docker socket | As sibling containers | Deferred by the core's 2026-09-23 amendment |
+
+The last row is what "run it in Docker" usually means, and nothing supports it yet. The Linux probe would
+read the `atc` container instead of the host. The engine publishes on the host's loopback, which the
+container cannot reach, and a session carries only a port the core accepts on `127.0.0.1`. Bind sources
+must be paths in the Docker daemon's namespace, not the container's. And the socket makes the container
+root on the host. `--network host` with identical paths looks like a shortcut and still reads the wrong
+machine. The core kept seams for it without touching any wire or storage format — a `ManagedDeployment`
+that adds publication and heartbeat to an engine's launch spec, a `MountSourceResolver` into the daemon's
+namespace, an executor-resolved internal `BackendTarget { base_url }` — and lists what a server
+deployment still has to decide: where the controller runs, Docker privileges, authentication, network
+exposure, storage mapping, update and rollback, restart ownership. `atc` answers the first (a host
+service); the rest is a joint design with the core after 4b.
+
+### Server specifics to handle
+
+- **Distributions.** Automatic install is qualified on Ubuntu 24.04 only; elsewhere the plan is
+  `prerequisite-blocked` with instructions. Today the allowlist also blocks *adopting* a working GPU
+  Docker on Debian, RHEL or a newer Ubuntu — the first live inventory ran on Ubuntu 26.04 and was blocked
+  by exactly that.
+- **Root and group-less access.** A daemon running as root, or reaching the socket through an ACL, has
+  Docker without the `docker` group, yet the probe reads `id -nG`, reports the group missing and plans to
+  add root to it.
+- **The `docker` group is root on the host.** The consent text says so; the documented server setup is a
+  dedicated service user.
+- **Two users, one Docker.** The environment is per machine user, the Linux Docker Engine per machine: a
+  desktop user and an `atc` service user get two environment records whose locks do not see each other.
+- **Freshness across cores.** A core's snapshot reflects its own changes only; after the desktop app
+  finished a setup, `atc` learns it from a probe, so `engines status` and `setup` always probe first.
+- **Disk and network.** The image lands in Docker's data root (`docker info` → `DockerRootDir`), not the
+  data folder, so the plan and `doctor` measure there. Pulls use the Docker daemon's own proxy settings,
+  not `atc`'s, and need `nvcr.io`; an air-gapped host has no path yet (pull by digest only).
+- **Hardware and scope.** Ampere or newer; NVFP4 needs Blackwell (sm100/sm120), FP8 Ada or newer, Ampere
+  gets W4A16 only. Out of the first release: multi-GPU inference, ARM, macOS, Podman, rootless Docker,
+  Windows 10; Windows Server is not a baseline.
+
+### Upstream status, 2026-09-25
+
+`atomic-chat-core@feat/tenzor-rt` is at `632b934`, package 0.3.0, 42 commits behind the core's `main`
+(0.5.1); the app's backlog has 19 of 71 cards done. **Done:** wire contracts and error codes, descriptor
+parsing and canonical hashing, managed data paths, nullable-PID sessions and control protocol 2, the
+operation reducer, CAS store, recovery, service, `/environments` routes, snapshot and SSE, the Linux and
+Windows probes, the pure residency policy, immutable model artifacts. **Next:** T01e, the deployment seams
+above. **Not started:** the Docker executor and watchdog, both installers, model resolution and download,
+the adapter and lifecycle, update and removal. `provisionerFor()` still answers null everywhere. Hardware
+evidence is pending: the Ubuntu host turned out to be an 8 GB RTX 4070 Laptop on Ubuntu 26.04 (the plan
+assumed 12 GB), and neither the Windows run nor the RTX 5090 has happened.
+
 ## Cross-cutting work
 
-- **Core changes still needed** (each a branch and a PR into `main`, then an exact pin bump here): a `host`
-  field in the lock record so a client can tell an `atc` daemon from the core CLI's without
-  `daemon.json`; the managed-runtime seams listed under iteration 4; `mmproj` in `downloadHfModel`.
+- **Core changes still needed** (each a branch and a PR into `main`, then an exact pin bump here):
+  - a `host` field in the lock record so a client can tell an `atc` daemon from the core CLI's without
+    `daemon.json`; `mmproj` in `downloadHfModel`;
+  - **the install recipe as data in the core** (backlog card T08b), with `recipeFor(recipe_id)` and its
+    canonical digest exported through `./host`. The backlog puts the recipe's steps inside the app's Rust
+    `pkexec` helper (T08c); then `atc host-step exec` cannot produce a receipt whose `recipe_digest`
+    matches without re-implementing Rust in TypeScript. Raise it before T08b/T08c are coded;
+  - the step's parameters on `ManagedHostStep`, or a documented derivation (Linux: `{ user }`);
+  - host facts on `AtomicCore.create` (`user`, `originalUser`, `elevatedUser`), which the Windows probe
+    already expects its host to supply (T09a);
+  - `assessLinux`: the distribution allowlist gates the install only, not adoption; root or a reachable
+    daemon without the group counts as access; the two probe defects the Ubuntu run found (T03c);
+  - the entrypoint script (T07b) materialised by the core from an embedded copy, so a single-binary host
+    needs no packaging of its own — otherwise `atc` embeds it the way it embeds the SPA;
+  - the descriptor's `minimum_app_version` (T20a) defined for a host that is not the desktop app;
+  - the free-disk check made on Docker's data root; the snapshot refreshed from the shared store;
+  - a core-held Hugging Face token a host can set, for gated repositories (T13b);
+  - the merge of `feat/tenzor-rt` over 0.5.x, which also brings control protocol 2.
 - **Core release automation:** the `NPM_TOKEN` secret in the core repository makes its release workflow
   publish `@atomic-chat/core` by itself.
 - **Core CI stability:** three runner flakes (Bun 1.3.10 segfault in `bun test` on macOS, the diffusion
   service test under coverage, the llama runtime load timeout on Windows arm) cost several reruns per
   release; raise those timeouts or retry those cases.
 - **Windows service:** Bun binaries are not SCM-aware; a wrapper (WinSW or NSSM) or a small native shim
-  is a decision for iteration 6.
+  is a decision for iteration 6. A wrapper running as LocalSystem cannot see the user's WSL distribution,
+  so it would rule out the managed runtime on that machine.
