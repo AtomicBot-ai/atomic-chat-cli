@@ -104,7 +104,7 @@ export function renderHelp(
 
 function renderRootHelp(root: CommandSpec, width: number): string {
   const out = [`Usage: atc <command> [options]`, '', root.description ?? root.summary]
-  const groups: CommandGroup[] = ['run', 'models', 'access', 'system']
+  const groups: CommandGroup[] = ['server', 'models', 'access', 'system']
   for (const group of groups) {
     const commands = (root.subcommands ?? []).filter((s) => !s.hidden && (s.group ?? 'system') === group)
     if (!commands.length) continue

@@ -8,8 +8,26 @@ import { CONFIG_VERSION } from './schema.js'
 
 export type Migration = (raw: Record<string, unknown>) => Record<string, unknown>
 
-/** Key N migrates a version-N document to N+1. Empty until the schema changes. */
-export const MIGRATIONS: Record<number, Migration> = {}
+const isObject = (v: unknown): v is Record<string, unknown> =>
+  v !== null && typeof v === 'object' && !Array.isArray(v)
+
+/** Key N migrates a version-N document to N+1. */
+export const MIGRATIONS: Record<number, Migration> = {
+  /**
+   * 1 → 2: `atc serve` is gone (ADR "Name the product Atomic Server and align the commands with
+   * the app"). Its engine and the duplicate `engines.provider` become `engines.default`; its model,
+   * context size and GPU layers are dropped — the model is named on `atc run`, and the other two are
+   * engine settings the core owns.
+   */
+  1: (raw) => {
+    const { serve, ...rest } = raw
+    const engines = isObject(rest['engines']) ? { ...rest['engines'] } : {}
+    const chosen = engines['provider'] ?? (isObject(serve) ? serve['engine'] : undefined)
+    delete engines['provider']
+    if (chosen !== undefined) engines['default'] = chosen
+    return Object.keys(engines).length > 0 ? { ...rest, engines } : rest
+  },
+}
 
 export function migrateConfig(raw: Record<string, unknown>): {
   raw: Record<string, unknown>

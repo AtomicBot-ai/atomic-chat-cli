@@ -1,6 +1,6 @@
 /**
  * The managed container runtime (TensorRT-LLM through Docker, later vLLM/SGLang) as the person
- * sees it in `atc setup` and the admin wizard: a small state machine over the core's operation
+ * sees it in `atc engines install` and the admin wizard: a small state machine over the core's operation
  * phases. Pure transitions, table-tested; wiring to the core's `/environments` is iteration 4.
  */
 

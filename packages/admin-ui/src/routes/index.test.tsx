@@ -24,7 +24,7 @@ describe('Dashboard', () => {
     vi.unstubAllGlobals()
   })
 
-  it('renders the daemon, core, API server, sessions, host steps and build from the store', () => {
+  it('renders the server, core, API, sessions, host steps and build from the store', () => {
     act(() => useStatusStore.setState({ status: statusFixture(), loading: false, updatedAt: Date.now() }))
 
     render(<Dashboard />)
@@ -38,7 +38,7 @@ describe('Dashboard', () => {
     expect(screen.getByText('0.0.0.0:1337')).toBeInTheDocument()
     expect(screen.getByText('qwen3-8b-q4')).toBeInTheDocument()
     expect(screen.getByText('llamacpp-upstream')).toBeInTheDocument()
-    expect(screen.getByText('Run: sudo atc setup --continue')).toBeInTheDocument()
+    expect(screen.getByText('Run: sudo atc engines install tensorrt-llm --resume op-1')).toBeInTheDocument()
     expect(screen.getByText('build-deadbeef')).toBeInTheDocument()
     expect(screen.getByText('http://127.0.0.1:1338')).toBeInTheDocument()
   })

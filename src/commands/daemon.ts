@@ -1,7 +1,7 @@
 import { AtcError, defineCommand } from '../cli/index.js'
 import { runDaemon } from '../daemon/index.js'
 
-/** Hidden: what `start`/`serve` spawn and what a service runs. */
+/** Hidden: the server process itself — what `start` spawns and `start --foreground` runs in place. */
 export const daemonCommand = defineCommand({
   name: 'daemon',
   summary: 'Run the daemon in the foreground (started for you by other commands)',

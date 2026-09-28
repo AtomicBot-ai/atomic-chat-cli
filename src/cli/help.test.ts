@@ -19,7 +19,7 @@ const root = defineCommand({
   name: 'atc',
   summary: 'Atomic Chat server CLI',
   subcommands: [
-    defineCommand({ name: 'serve', summary: 'Serve a model', group: 'run', run: async () => 0 }),
+    defineCommand({ name: 'serve', summary: 'Serve a model', group: 'server', run: async () => 0 }),
     defineCommand({ name: 'models', summary: 'Manage models', group: 'models', subcommands: [pull] }),
     defineCommand({ name: 'daemon', summary: 'hidden', hidden: true, run: async () => 0 }),
     notImplemented({ name: 'setup', summary: 'Set up', group: 'models' }),
@@ -46,7 +46,7 @@ describe('help', () => {
 
   it('groups the root help and hides hidden commands, marks stubs', () => {
     const text = renderHelp(root, [])
-    expect(text).toContain('Run:')
+    expect(text).toContain('Server:')
     expect(text).toContain('Models & engines:')
     expect(text).not.toContain('daemon')
     expect(text).toContain('setup')

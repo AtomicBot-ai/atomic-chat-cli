@@ -20,9 +20,9 @@ export function Spinner() {
 function daemonSummary(state: TuiState, now: number): string {
   const daemon = state.daemon
   if (daemon.kind === 'connecting') return 'connecting'
-  if (daemon.kind === 'down') return 'daemon stopped'
+  if (daemon.kind === 'down') return 'server stopped'
   const startedAt = daemon.record?.started_at
-  return startedAt === undefined ? 'daemon up' : `daemon up ${formatDuration(now - startedAt)}`
+  return startedAt === undefined ? 'server up' : `server up ${formatDuration(now - startedAt)}`
 }
 
 export function Header({ state, now, width }: { state: TuiState; now: number; width: number }) {

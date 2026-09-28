@@ -6,19 +6,19 @@
  */
 
 export const ITERATIONS = {
-  I2: 'iteration 2 (daemon lifecycle, serve/run, api start/stop)',
-  I3: 'iteration 3 (models: catalog, pull, list, rm; API keys)',
-  I4: 'iteration 4 (engines, setup, managed environment, elevation)',
+  I2: 'iteration 2 (a first model answering: engines install, models pull, run, unload, the API)',
+  I3: 'iteration 3 (models: catalog, resolver, resumable pull, list, rm, info; API keys)',
+  I4: 'iteration 4 (engines and hardware from the core; the managed runtime; elevation)',
   I5: 'iteration 5 (admin pages: API, models, engines; non-loopback consent)',
   I6: 'iteration 6 (service, update, doctor completion)',
-  I7: 'iteration 7 (admin: setup wizard, logs, settings, hardware)',
+  I7: 'iteration 7 (admin: engine install wizard, logs, settings, hardware)',
 } as const
 export type Iteration = keyof typeof ITERATIONS
 
 /** Command path → iteration. Keys are the space-joined path below `atc`. */
 export const PLANNED: Record<string, Iteration> = {
-  'serve': 'I2',
   'run': 'I2',
+  'unload': 'I2',
   'api start': 'I2',
   'api stop': 'I2',
   'api status': 'I2',
@@ -27,17 +27,14 @@ export const PLANNED: Record<string, Iteration> = {
   'api key rotate': 'I3',
   'api key clear': 'I3',
   'models search': 'I3',
-  'models pull': 'I3',
+  'models pull': 'I2',
   'models list': 'I3',
   'models rm': 'I3',
   'models info': 'I3',
-  'models load': 'I3',
-  'models unload': 'I3',
   'engines list': 'I4',
-  'engines install': 'I4',
+  'engines install': 'I2',
   'engines status': 'I4',
   'engines rm': 'I4',
-  'setup': 'I4',
   'hardware show': 'I4',
   'hardware refresh': 'I4',
   'service install': 'I6',
@@ -49,6 +46,7 @@ export const PLANNED: Record<string, Iteration> = {
 
 /** Features of otherwise working commands that are still stubs (`atc logs -f`, `atc update` without `--check`). */
 export const PLANNED_PARTIAL: Record<string, Iteration> = {
+  'start --foreground': 'I2',
   'logs --follow': 'I2',
   'update apply': 'I6',
   'config engine.*': 'I2',

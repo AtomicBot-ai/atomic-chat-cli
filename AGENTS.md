@@ -5,6 +5,7 @@ every task. Anything that applies only sometimes lives behind a link.
 
 | Need                                             | Go to                                                    |
 | ------------------------------------------------ | -------------------------------------------------------- |
+| The product's words and what each command is for | [`docs/concepts.md`](docs/concepts.md)                   |
 | Processes, ports, tokens, data folder, host steps | [`docs/architecture.md`](docs/architecture.md)           |
 | Why something is built this way                  | [`docs/decisions/INDEX.md`](docs/decisions/INDEX.md)     |
 | What comes next, iteration by iteration           | [`docs/roadmap.md`](docs/roadmap.md)                     |
@@ -17,10 +18,12 @@ every task. Anything that applies only sometimes lives behind a link.
 
 ## 1. What this is
 
-The server CLI of **Atomic Chat**: one binary, `atc`, that embeds `atomic-chat-core` (engines, models, the
-OpenAI-compatible `/v1` server) and adds what a server needs — a daemon that owns the data folder, a web
-admin on loopback, the hardware facts the core cannot measure itself, and the privileged host steps of
-managed runtimes. `atc` is a separate product from the desktop app; they share the core and nothing else.
+**Atomic Server**: one binary, `atc`, that embeds `atomic-chat-core` (engines, models, the OpenAI-compatible
+`/v1` API) and adds what a server needs — a background server process that owns the data folder, a web
+admin on loopback, a terminal UI, and the privileged host steps of managed runtimes. No engine ships inside:
+engines are installed on demand and the core picks the build for the hardware. Atomic Server is a separate
+product from the Atomic Chat desktop app; they share the core and nothing else. Words in user-facing text
+follow [`docs/concepts.md`](docs/concepts.md) ("server", not "daemon"; `run`/`unload` a model).
 
 This iteration is the **scaffold**: real where the core already does the work (daemon lifecycle, health,
 admin shell, config, doctor, the terminal UI), stubs that exit 3 everywhere else. `src/cli/not-implemented.ts`
@@ -105,7 +108,7 @@ through `npm run`, as in the core. Code never knows which runtime it is on.
 ## 5. How a command is built
 
 A command is a `CommandSpec` (`src/cli/command.ts`): `name`, `summary`, `description`, `group`
-(`run` | `models` | `access` | `system`), `options` (string/boolean, `parseArgs` strict), `positionals`,
+(`server` | `models` | `access` | `system`), `options` (string/boolean, `parseArgs` strict), `positionals`,
 `subcommands`, `defaultSubcommand`, `examples`, `hidden`, and `run(invocation, ctx)` returning the exit
 code. Help, `docs/commands.md` and `atc completion` render from the spec, so nothing drifts. Global flags
 are stripped once by `splitGlobalFlags` before the command parses its own.

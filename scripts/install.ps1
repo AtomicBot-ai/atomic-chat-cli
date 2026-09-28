@@ -81,6 +81,8 @@ if ($present) {
 }
 Write-Host ""
 Write-Host "next:"
+Write-Host "  atc                  # the terminal UI"
 Write-Host "  atc doctor"
-Write-Host "  atc serve Qwen/Qwen3-8B-GGUF"
+Write-Host "  atc engines install"
+Write-Host "  atc models pull Qwen/Qwen3-8B-GGUF; atc run Qwen/Qwen3-8B-GGUF"
 Write-Host "  atc admin"

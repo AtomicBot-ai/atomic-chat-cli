@@ -3,9 +3,10 @@ import { render } from 'ink'
 import { afterEach, describe, expect, it } from 'vitest'
 import { eventually, fakeTerminal, KEYS } from '../../test/helpers/fake-terminal.js'
 import type { FakeTerminal } from '../../test/helpers/fake-terminal.js'
+import { ROOT } from '../commands/index.js'
 import { App, layoutFor } from './app.js'
 import type { TuiCommand } from './keys.js'
-import type { ConfigRow, TuiAction } from './state.js'
+import type { ConfigRow, TabId, TuiAction } from './state.js'
 
 const NOW = new Date('2026-09-24T12:00:00Z')
 
@@ -69,7 +70,7 @@ afterEach(() => {
   mounted = []
 })
 
-function mount(options: { tab?: 'overview' | 'logs' | 'config' | 'doctor'; terminal?: FakeTerminal } = {}) {
+function mount(options: { tab?: TabId; terminal?: FakeTerminal } = {}) {
   const terminal = options.terminal ?? fakeTerminal(100, 30)
   const commands: TuiCommand[] = []
   let dispatch: (action: TuiAction) => void = () => undefined
@@ -84,6 +85,7 @@ function mount(options: { tab?: 'overview' | 'logs' | 'config' | 'doctor'; termi
       now={() => NOW}
       dataFolder="/srv/atc"
       logPath="/srv/atc/atc/logs/daemon.log"
+      root={ROOT}
     />,
     { ...terminal.streams, debug: true, interactive: true, exitOnCtrlC: false, patchConsole: false }
   )
@@ -103,14 +105,14 @@ function mount(options: { tab?: 'overview' | 'logs' | 'config' | 'doctor'; termi
 const up: TuiAction = { type: 'daemon', daemon: { kind: 'up', snapshot, record, pending: [] } }
 
 describe('the terminal UI', () => {
-  it('shows the admin dashboard cards in its words once the daemon is up', async () => {
+  it('shows the admin dashboard cards in its words once the server is up', async () => {
     const ui = mount()
-    await ui.sees('connecting to the daemon')
+    await ui.sees('connecting to the server')
     ui.dispatch(up)
-    await ui.sees('API server')
+    await ui.sees('Loaded models')
     const frame = ui.frame()
     for (const text of [
-      'Daemon',
+      'Server',
       'pid 4121 · up 2h 14m',
       'Core',
       '0.5.1 · instance 7f3a1c2b…',
@@ -127,14 +129,14 @@ describe('the terminal UI', () => {
     expect(frame).toContain('Pending host steps')
     expect(frame).toContain('http://127.0.0.1:1338 · atc 0.1.0')
     expect(frame).toContain('S stop')
-    expect(frame).not.toContain('s start daemon')
+    expect(frame).not.toContain('s start the server')
   })
 
-  it('offers to start a stopped daemon and asks before stopping a running one', async () => {
+  it('offers to start a stopped server and asks before stopping a running one', async () => {
     const ui = mount()
     ui.dispatch({ type: 'daemon', daemon: { kind: 'down', error: undefined } })
     await ui.sees('not running')
-    expect(ui.frame()).toContain('s start daemon')
+    expect(ui.frame()).toContain('s start the server')
     ui.press('s')
     await eventually(() => ui.commands.length === 1)
     expect(ui.commands).toEqual([{ name: 'start' }])
@@ -142,11 +144,11 @@ describe('the terminal UI', () => {
     ui.dispatch(up)
     await ui.sees('S stop')
     ui.press('S')
-    await ui.sees('Stop the daemon?')
+    await ui.sees('Stop the server?')
     ui.press('n')
-    await ui.sees('API server')
+    await ui.sees('Loaded models')
     ui.press('S')
-    await ui.sees('Stop the daemon?')
+    await ui.sees('Stop the server?')
     ui.press('y')
     await eventually(() => ui.commands.length === 2)
     expect(ui.commands[1]).toEqual({ name: 'stop' })
@@ -155,13 +157,13 @@ describe('the terminal UI', () => {
   it('switches screens by arrows, number and tab, shows help, and quits on q', async () => {
     const ui = mount()
     ui.press(KEYS.left)
-    await ui.sees('running the checks')
+    await ui.sees('run it in a shell')
     ui.press(KEYS.right)
-    await ui.sees('connecting to the daemon')
+    await ui.sees('connecting to the server')
     ui.press(KEYS.right)
     await ui.sees('the log is empty')
     ui.press('1')
-    await ui.sees('connecting to the daemon')
+    await ui.sees('connecting to the server')
     ui.press('2')
     await ui.sees('the log is empty')
     ui.press(KEYS.tab)
@@ -223,7 +225,7 @@ describe('the terminal UI', () => {
     await ui.sees('Local models behind an OpenAI-compatible API')
     expect(ui.frame()).toContain('▄█▄  ██  ▄█▄')
     ui.dispatch({ type: 'daemon', daemon: { kind: 'down', error: undefined } })
-    await ui.sees('s start the daemon')
+    await ui.sees('s start the server')
     const tabsAt = (frame: string) => frame.split('\n').findIndex((l) => l.includes('1 Overview'))
     const overview = tabsAt(ui.frame())
     for (const key of ['2', '3', '4', '?']) {
@@ -259,11 +261,35 @@ describe('the terminal UI', () => {
     expect(layoutFor(columns, rows)).toEqual(expected)
   })
 
+  it('lists every command with its status, and opens its full help', async () => {
+    const ui = mount({ tab: 'commands' })
+    await ui.sees('Server')
+    const frame = ui.frame()
+    expect(frame).toContain('› start')
+    // One line per command: the status sits on the command's own line, not wrapped below it.
+    expect(frame.split('\n').find((l) => l.includes('› start'))).toContain('works')
+    expect(frame).toContain('Start the server (core, API, web admin) in the background')
+    expect(frame).toContain('works')
+    expect(frame).toContain('Models & engines')
+    expect(frame).toContain('iteration 2')
+    expect(frame).not.toContain('daemon')
+    ui.press(KEYS.enter)
+    await ui.sees('Usage: atc start [options]')
+    expect(ui.frame()).toContain('--foreground')
+    ui.press(KEYS.escape)
+    await ui.sees('run it in a shell: atc start')
+    for (let i = 0; i < 5; i += 1) ui.press(KEYS.down)
+    await ui.sees('› run')
+    ui.press(KEYS.enter)
+    await ui.sees('Usage: atc run <model> [options]')
+    expect(ui.frame()).toContain('atc run --help · iteration 2 · esc back')
+  })
+
   it('says so when the terminal is too small, and recovers on resize', async () => {
     const terminal = fakeTerminal(60, 8)
     const ui = mount({ terminal })
     await ui.sees('The terminal is too small (60×8)')
     terminal.stdout.resize(100, 30)
-    await ui.sees('connecting to the daemon')
+    await ui.sees('connecting to the server')
   })
 })

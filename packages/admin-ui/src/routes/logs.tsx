@@ -28,7 +28,7 @@ function LogsPage() {
   return (
     <PlaceholderPage
       title="Logs"
-      description="The daemon's log: what atc and the core wrote, newest last."
+      description="The server's log: what atc and the core wrote, newest last."
       iteration={7}
       note="Reading the log file, filtering by level and following the core's log land with the log API."
     >

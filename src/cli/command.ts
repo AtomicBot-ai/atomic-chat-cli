@@ -29,10 +29,10 @@ export interface PositionalSpec {
   rest?: boolean
 }
 
-export type CommandGroup = 'run' | 'models' | 'access' | 'system'
+export type CommandGroup = 'server' | 'models' | 'access' | 'system'
 
 export const GROUP_TITLES: Record<CommandGroup, string> = {
-  run: 'Run',
+  server: 'Server',
   models: 'Models & engines',
   access: 'Access',
   system: 'System',

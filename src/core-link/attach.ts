@@ -47,16 +47,16 @@ export async function attachCore(options: AttachOptions): Promise<CoreLink> {
   } catch (error) {
     if (!(error instanceof AtomicCoreError && error.code === 'CORE_NOT_RUNNING')) throw error
     if (!options.launch) {
-      throw new AtcError('ATC_DAEMON_NOT_RUNNING', 'No atc daemon is running for this data folder.', {
+      throw new AtcError('ATC_DAEMON_NOT_RUNNING', 'Atomic Server is not running for this data folder.', {
         details: paths.dataFolder,
-        hint: 'start one with `atc start` (or `atc serve <model>`)',
+        hint: 'start it with `atc start`',
       })
     }
     const state = await inspectLock(layout)
     if (state.kind !== 'owned') {
-      log.info('starting the atc daemon')
+      log.info('starting the server')
       await options.spawnDaemon()
-    } else log.debug('a daemon is starting; waiting for it')
+    } else log.debug('a server is starting; waiting for it')
     await waitForPublishedOwner(layout, { timeoutMs })
     owner = await attachToOwner({
       layout,
@@ -73,7 +73,7 @@ export async function attachCore(options: AttachOptions): Promise<CoreLink> {
   if (!record) {
     throw new AtcError(
       'ATC_DAEMON_FOREIGN',
-      'The data folder is owned by a core that is not an atc daemon.',
+      'The data folder is owned by a core that is not Atomic Server.',
       {
         details: `pid ${owner.record.pid}, core ${owner.record.version} — probably \`atomic-chat-core\`'s own CLI`,
         hint: 'stop it (`atomic-chat-core shutdown`) or use a separate --data-folder',

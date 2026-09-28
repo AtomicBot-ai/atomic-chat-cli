@@ -56,7 +56,7 @@ export function createHttpInvoke(base = ADMIN_BASE): Invoke {
       default:
         throw new AdminApiError(
           'ADMIN_UNSUPPORTED_COMMAND',
-          `The admin cannot run "${command}"; only core calls reach the daemon.`
+          `The admin cannot run "${command}"; only core calls reach the server.`
         )
     }
   }

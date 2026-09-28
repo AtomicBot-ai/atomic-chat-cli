@@ -33,7 +33,7 @@ export const SETUP_STEPS: Record<SetupState, SetupStep> = {
     label: 'Consent',
     title: 'Review what will change',
     description:
-      'atc will create a service user, a data folder, and the service that keeps the daemon running after you log out.',
+      'atc will create a service user, a data folder, and the service that keeps the server running after you log out.',
     action: 'Agree and continue',
   },
   'elevating': {
@@ -61,8 +61,7 @@ export const SETUP_STEPS: Record<SetupState, SetupStep> = {
   'ready': {
     label: 'Ready',
     title: 'Managed environment ready',
-    description:
-      'The daemon runs under its service account; models, downloads and the API server live there.',
+    description: 'The server runs under its service account; models, downloads and the API live there.',
   },
   'failed': {
     label: 'Failed',

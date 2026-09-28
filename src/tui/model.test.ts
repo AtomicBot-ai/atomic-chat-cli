@@ -48,7 +48,7 @@ describe('helpers', () => {
 
   it('describes a saved edit', () => {
     expect(describeEdit('api.port', 1338)).toBe('api.port = 1338')
-    expect(describeEdit('serve.model', undefined)).toBe('serve.model = null')
+    expect(describeEdit('managed.image', undefined)).toBe('managed.image = null')
   })
 
   it.each([

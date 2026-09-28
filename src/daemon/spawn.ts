@@ -42,7 +42,7 @@ export async function spawnDaemon(options: SpawnDaemonOptions): Promise<{ pid: n
   })
   closeSync(logFd)
   if (failed)
-    throw new AtcError('ATC_DAEMON_START_FAILED', 'Could not start the atc daemon.', {
+    throw new AtcError('ATC_DAEMON_START_FAILED', 'Could not start the server.', {
       details: failed.message,
     })
   child.unref()

@@ -32,7 +32,7 @@ export function systemdUnit(o: ServiceOptions): string {
     '',
     '[Service]',
     'Type=simple',
-    `ExecStart=${o.execPath} run --no-model --data-folder ${o.dataFolder}`,
+    `ExecStart=${o.execPath} start --foreground --data-folder ${o.dataFolder}`,
     `ExecStop=${o.execPath} stop --data-folder ${o.dataFolder}`,
     'Restart=on-failure',
     'RestartSec=5',
@@ -57,8 +57,8 @@ export function launchdPlist(o: ServiceOptions): string {
     '  <key>ProgramArguments</key>',
     '  <array>',
     `    <string>${o.execPath}</string>`,
-    '    <string>run</string>',
-    '    <string>--no-model</string>',
+    '    <string>start</string>',
+    '    <string>--foreground</string>',
     '    <string>--data-folder</string>',
     `    <string>${o.dataFolder}</string>`,
     '  </array>',
@@ -82,7 +82,7 @@ export function schtasksCreateArgs(o: ServiceOptions): string[] {
     '/TN',
     o.name,
     '/TR',
-    `"${o.execPath}" run --no-model --data-folder "${o.dataFolder}"`,
+    `"${o.execPath}" start --foreground --data-folder "${o.dataFolder}"`,
   ]
 }
 

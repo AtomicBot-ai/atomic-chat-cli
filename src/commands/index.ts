@@ -15,9 +15,8 @@ import {
   hardwareCommand,
   modelsCommand,
   runCommand,
-  serveCommand,
   serviceCommand,
-  setupCommand,
+  unloadCommand,
 } from './stubs.js'
 import { tuiCommand } from './tui.js'
 import { updateCommand } from './update.js'
@@ -25,20 +24,19 @@ import { versionCommand } from './version.js'
 
 export const ROOT = defineCommand({
   name: 'atc',
-  summary: 'Atomic Chat server CLI',
+  summary: 'Atomic Server',
   description:
-    'atc runs an inference engine and a model on this machine, exposes them over an OpenAI-compatible API, and manages it all from the terminal or a local web admin. Run bare `atc` on a terminal to open the terminal UI.',
+    'Atomic Server keeps models on this machine and serves them over an OpenAI-compatible API; atc is its command. Install an engine, pull a model, run it — and manage it all from here, the terminal UI (bare `atc` on a terminal) or the local web admin.',
   subcommands: [
-    serveCommand,
-    runCommand,
     startCommand,
     stopCommand,
     restartCommand,
     statusCommand,
     logsCommand,
+    runCommand,
+    unloadCommand,
     modelsCommand,
     enginesCommand,
-    setupCommand,
     hardwareCommand,
     apiCommand,
     adminCommand,

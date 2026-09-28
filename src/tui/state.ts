@@ -9,8 +9,8 @@ import type { ConfigSource, FieldType } from '../config/index.js'
 import type { DaemonRecord } from '../core-link/index.js'
 import type { CheckResult } from '../doctor/index.js'
 
-/** Tabs in order; the number keys follow it. Models, Downloads and Setup join in later iterations. */
-export const TABS = ['overview', 'logs', 'config', 'doctor'] as const
+/** Tabs in order; the number keys follow it. Models and Downloads join in later iterations. */
+export const TABS = ['overview', 'logs', 'config', 'doctor', 'commands'] as const
 export type TabId = (typeof TABS)[number]
 
 export const TAB_TITLES: Record<TabId, string> = {
@@ -18,6 +18,7 @@ export const TAB_TITLES: Record<TabId, string> = {
   logs: 'Logs',
   config: 'Config',
   doctor: 'Doctor',
+  commands: 'Commands',
 }
 
 /** Log lines kept in memory; older ones are still in the file. */
@@ -84,6 +85,15 @@ export interface DoctorState {
   results: CheckResult[] | undefined
 }
 
+export interface CommandsState {
+  /** The selected command in the list. */
+  cursor: number
+  /** Its full help is open instead of the list. */
+  open: boolean
+  /** Help lines scrolled past. */
+  scroll: number
+}
+
 export interface TuiState {
   tab: TabId
   overlay: Overlay | undefined
@@ -94,6 +104,7 @@ export interface TuiState {
   logs: LogsState
   config: ConfigState
   doctor: DoctorState
+  commands: CommandsState
 }
 
 export type TuiAction =
@@ -116,6 +127,10 @@ export type TuiAction =
   | { type: 'config-message'; message: ConfigState['message'] }
   | { type: 'doctor-running' }
   | { type: 'doctor-results'; results: CheckResult[] }
+  /** `count`: how many commands the list holds, known to the key handler. */
+  | { type: 'commands-move'; by: number; count: number }
+  | { type: 'commands-open'; open: boolean }
+  | { type: 'commands-scroll'; by: number; max: number }
 
 export function initialState(tab: TabId = 'overview'): TuiState {
   return {
@@ -127,6 +142,7 @@ export function initialState(tab: TabId = 'overview'): TuiState {
     logs: { lines: [], follow: true, scroll: 0, filter: '', filtering: false },
     config: { rows: [], cursor: 0, editing: undefined, message: undefined, warnings: [] },
     doctor: { running: false, results: undefined },
+    commands: { cursor: 0, open: false, scroll: 0 },
   }
 }
 
@@ -210,6 +226,16 @@ export function reduce(state: TuiState, action: TuiAction): TuiState {
       return { ...state, doctor: { ...state.doctor, running: true } }
     case 'doctor-results':
       return { ...state, doctor: { running: false, results: action.results } }
+    case 'commands-move': {
+      const cursor = clamp(state.commands.cursor + action.by, 0, Math.max(0, action.count - 1))
+      return { ...state, commands: { ...state.commands, cursor } }
+    }
+    case 'commands-open':
+      return { ...state, commands: { ...state.commands, open: action.open, scroll: 0 } }
+    case 'commands-scroll': {
+      const scroll = clamp(state.commands.scroll + action.by, 0, action.max)
+      return { ...state, commands: { ...state.commands, scroll } }
+    }
     default: {
       const logs = reduceLogs(state.logs, action)
       const config = reduceConfig(state.config, action)

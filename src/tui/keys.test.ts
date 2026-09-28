@@ -28,7 +28,7 @@ const NO_KEY: Key = {
   numLock: false,
 }
 const key = (over: Partial<Key> = {}): Key => ({ ...NO_KEY, ...over })
-const view = { bodyRows: 10 }
+const view = { bodyRows: 10, commandCount: 30, helpLineCount: 40 }
 const apply = (state: TuiState, ...actions: TuiAction[]) => actions.reduce(reduce, state)
 
 const up: TuiAction = {
@@ -39,7 +39,7 @@ const down: TuiAction = { type: 'daemon', daemon: { kind: 'down', error: undefin
 const rows: ConfigRow[] = [
   { path: 'api.port', type: 'number', value: '1337', source: 'default', description: '', values: undefined },
   {
-    path: 'serve.engine',
+    path: 'engines.default',
     type: 'enum',
     value: 'b',
     source: 'file',
@@ -173,10 +173,10 @@ describe('handleKey', () => {
     )
     expect(handleKey('', key({ return: true }), s, view).command).toEqual({
       name: 'config-set',
-      key: 'serve.engine',
+      key: 'engines.default',
       raw: 'c',
     })
-    expect(handleKey('u', key(), s, view).command).toEqual({ name: 'config-unset', key: 'serve.engine' })
+    expect(handleKey('u', key(), s, view).command).toEqual({ name: 'config-unset', key: 'engines.default' })
   })
 
   it('pages the log by the rows that fit and never scrolls past the first line', () => {

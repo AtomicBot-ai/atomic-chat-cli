@@ -1,15 +1,18 @@
-# atc — the Atomic Chat server CLI
+# Atomic Server
 
-`atc` puts an inference engine and a model on a server — Linux, Windows or macOS, usually headless — and
-exposes them over an OpenAI-compatible API on `http://127.0.0.1:1337/v1`. It embeds
-[`atomic-chat-core`](https://github.com/AtomicBot-ai/atomic-chat-core) as a library and ships as one binary
-per platform; the same daemon serves a web admin on `127.0.0.1:1338` for people who would rather not use a
-terminal. `atc` and the Atomic Chat desktop app are separate products for different audiences: they share
-the core (and the core's per-user managed-runtime root) and nothing else.
+**Atomic Server** keeps models on a machine — Linux, Windows or macOS, usually a headless server — and
+serves them over an OpenAI-compatible API on `http://127.0.0.1:1337/v1`. Its command is **`atc`**. It
+embeds [`atomic-chat-core`](https://github.com/AtomicBot-ai/atomic-chat-core) as a library and ships as
+one binary per platform, with no engine inside: engines are installed on demand, and the core picks the
+build for the hardware. The same server has a web admin on `127.0.0.1:1338` and a terminal UI (bare `atc`)
+for people who would rather not type commands. Atomic Server and the Atomic Chat desktop app are separate
+products for different audiences: they share the core (and the core's per-user managed-runtime root) and
+nothing else. The words used everywhere — server, engine, engine build, model, run, unload — are defined
+in [`docs/concepts.md`](docs/concepts.md).
 
-> **Status: scaffold.** The command tree, help texts, config, daemon lifecycle, admin server, build and
-> release pipeline are real. Commands marked **stub** parse their flags and print their help, but running
-> one exits with code 3 (`ATC_NOT_IMPLEMENTED`) and names the iteration that implements it.
+> **Status: scaffold.** The command tree, help texts, config, server lifecycle, terminal UI, admin, build
+> and release pipeline are real. Commands marked **stub** parse their flags and print their help, but
+> running one exits with code 3 (`ATC_NOT_IMPLEMENTED`) and names the iteration that implements it.
 > [`docs/commands.md`](docs/commands.md) is generated from the command specs and is the authoritative list.
 
 ## Quick start on a server
@@ -24,17 +27,21 @@ The installer downloads the release's `SHA256SUMS`, picks the binary for this ma
 in `~/.local/bin/atc` (`%LOCALAPPDATA%\atc\atc.exe` on Windows) and adds that directory to `PATH`.
 `ATC_INSTALL_DIR`, `ATC_VERSION` (a tag, e.g. `v0.1.0`), `ATC_NO_PATH=1` and `ATC_REPO` override the defaults.
 
+Getting a model to answer takes three steps, as in the desktop app (iteration 2; stubs in this build):
+
 ```sh
-atc doctor                     # versions, data folder, config, ports 1337/1338, PATH, GPU driver
-atc serve Qwen/Qwen3-8B-GGUF   # engine → model → daemon → API URL     (stub in this build: exit 3)
+atc engines install              # the engine build the core picks for this hardware
+atc models pull Qwen/Qwen3-8B-GGUF
+atc run Qwen/Qwen3-8B-GGUF       # starts it on the running server; `atc unload` stops it
 ```
 
 What runs today:
 
 ```sh
-atc                  # on a terminal: the live terminal UI — Overview, Logs, Config, Doctor (? for keys)
-atc start            # the daemon (core + web admin) in the background; it outlives this command
-atc status           # pid, versions, API endpoint, loaded models, admin URL   (--json for one document)
+atc                  # on a terminal: the terminal UI — Overview, Logs, Config, Doctor, Commands (? for keys)
+atc doctor           # versions, data folder, config, ports 1337/1338, PATH, GPU driver
+atc start            # the server (core, API, web admin) in the background; it outlives this command
+atc status           # pid, versions, API endpoint, running models, admin URL   (--json for one document)
 atc admin            # prints http://127.0.0.1:1338/#token=… and opens a browser
 atc stop             # graceful; --force while other commands are attached, --kill after the timeout
 ```
@@ -43,30 +50,28 @@ atc stop             # graceful; --force while other commands are attached, --ki
 
 | Group | Command | What it does | Status |
 | --- | --- | --- | --- |
-| Run | `atc serve [model]` | Engine, model download, daemon, load, API — one step | stub (iteration 2) |
-| Run | `atc run [model]` | The same in the foreground, for containers and systemd | stub (iteration 2) |
-| Run | `atc start` / `stop` / `restart` | The background daemon: core + web admin | works |
-| Run | `atc status` | Daemon, API endpoint, loaded models, admin URL | works (`--watch` is a stub) |
-| Run | `atc logs` | Tail of the daemon log | works (`-f` is a stub) |
-| Models & engines | `atc models search\|pull\|list\|rm\|info\|load\|unload` | Catalog and Hugging Face; install on the CLI side | stub (iteration 3) |
-| Models & engines | `atc engines list\|install\|status\|rm` | Engine packs (llama.cpp builds) the core runs | stub (iteration 4) |
-| Models & engines | `atc setup` | Hardware → engine → optional managed runtime (TensorRT-LLM via Docker) | stub (iteration 4) |
-| Models & engines | `atc hardware show\|refresh` | What the prober sees and what it told the core | stub (iteration 4) |
-| Access | `atc api start\|stop\|status` | The OpenAI-compatible API on the running core | stub (iteration 2) |
+| Server | `atc start` / `stop` / `restart` | The server: core, API and web admin in the background | works (`start --foreground` is a stub) |
+| Server | `atc status` | The server, the API endpoint, running models, the admin URL | works (`--watch` is a stub) |
+| Server | `atc logs` | Tail of the server log | works (`-f` is a stub) |
+| Models & engines | `atc run <model>` / `atc unload <model>` | Start a downloaded model on the active engine; stop it | stub (iteration 2) |
+| Models & engines | `atc models search\|pull\|list\|rm\|info` | The catalog and the model files | stub (`pull`: iteration 2; the rest: 3) |
+| Models & engines | `atc engines list\|install\|status\|rm` | Engines (llama.cpp, MLX, TensorRT-LLM) and their builds; installing one prepares what it needs | stub (`install`: iteration 2; the rest: 4) |
+| Models & engines | `atc hardware show\|refresh` | What the core sees of the GPU and CPU | stub (iteration 4) |
+| Access | `atc api start\|stop\|status` | The OpenAI-compatible API on the running server | stub (iteration 2) |
 | Access | `atc api key show\|set\|rotate\|clear` | The API key (a core setting) | stub (iteration 3) |
-| Access | `atc admin [open\|status\|token]` | Login URL, where the admin listens, token rotation | works |
-| Access | `atc tui` | Full-screen terminal UI (what bare `atc` opens on a terminal): daemon, log, config, doctor | works (models, downloads, setup screens come with iterations 3–4) |
+| Access | `atc admin [open\|status\|token]` | Sign-in link, where the admin listens, token rotation | works |
+| Access | `atc tui` | The terminal UI, explicitly (what bare `atc` opens on a terminal) | works (Models and Downloads screens come with iterations 2–3) |
 | System | `atc config get\|set\|unset\|list\|path` | `atc` settings | works (`engine.*` keys are a stub) |
 | System | `atc doctor` | Diagnostic table with hints | works (GPU: NVIDIA only; Docker check skipped) |
-| System | `atc service install\|uninstall\|status\|start\|stop` | The daemon as an OS service | stub (iteration 6) |
+| System | `atc service install\|uninstall\|status\|start\|stop` | The server as an OS service | stub (iteration 6) |
 | System | `atc update` | Self-update from GitHub Releases | `--check` works; applying is a stub (iteration 6) |
 | System | `atc version`, `atc completion <shell>` | Versions; bash/zsh/fish/powershell completion | works |
 
-Hidden: `atc daemon` (the foreground daemon that `start` spawns) and `atc host-step exec <request.json>`
-(the privileged helper for managed runtimes).
+Hidden: `atc daemon` (the server process itself, which `start` spawns) and `atc host-step exec
+<request.json>` (the privileged helper for managed runtimes).
 
 Bare `atc` opens the terminal UI only on an interactive terminal; in a pipe, a script, a service unit or
-with `--json` it prints this help and exits 2, as before. Leaving the UI (`q`) never stops the daemon.
+with `--json` it prints this help and exits 2, as before. Leaving the UI (`q`) never stops the server.
 
 Global flags go anywhere on the line: `--json`, `-v/--verbose`, `-q/--quiet`, `-y/--yes`,
 `--data-folder <path>`, `--no-color`, `-h/--help`, `--version`. With `--json` a command prints exactly one
@@ -81,14 +86,14 @@ Exit codes: `0` success, `1` runtime error, `2` usage (also bare `atc` and bare 
 <data> = <system data>/atomic-chat-cli/data      --data-folder or ATC_DATA_FOLDER override it
 <data>/atomic-core/           the core: instance.lock, control-token (0600), settings.json, processes.json, logs/
 <data>/llamacpp/models/       GGUF models, one folder with model.yml each (both llama.cpp providers)
-<data>/<provider>/backends/   engine packs the core installs
+<data>/<provider>/backends/   engine builds the core installs
 <data>/atc/                   what only atc owns
   config.json                 settings (0644, written atomically; unknown keys are kept)
   secrets.json                0600: hfToken, adminPassword
   run/daemon.json             pid, instance_id, state (starting|ready), atc/core versions, control_url, admin_url, started_at
   run/admin-token             0600: the admin login token
   run/host-steps/             <step_id>.request.json, <step_id>.result.json, journal.json
-  logs/daemon.log             the daemon's stderr
+  logs/daemon.log             the server's stderr
   cache/                      catalog and recommendation caches (iteration 3)
 ```
 
@@ -108,10 +113,11 @@ atc config set models.autoLoad qwen3-8b,gemma-4b
 atc config path
 ```
 
-Keys are `serve.*`, `api.*`, `admin.*`, `engines.*`, `models.*`, `managed.*`, `proxy.*`, `update.*`,
-`telemetry.*`, `log.*` (the table is `src/config/schema.ts`). Engine parameters
+Keys are `api.*`, `admin.*`, `engines.*` (`engines.default` is the engine `atc run` falls back on),
+`models.*`, `managed.*`, `proxy.*`, `update.*`, `telemetry.*`, `log.*` (the table is `src/config/schema.ts`). Engine parameters
 (`engine.<provider>.<key>`) belong to the core's settings; forwarding them through `atc config` is a stub.
-A config file written by a newer `atc` is refused with a hint rather than half-read.
+A config file written by a newer `atc` is refused with a hint rather than half-read; an older one is
+migrated (version 2 dropped the `serve.*` keys along with the `serve` command).
 
 ## The web admin
 
@@ -122,8 +128,8 @@ atc admin token --rotate     # new token; old login links stop working
 ```
 
 The admin listens on loopback only. The token in the URL fragment is exchanged once for an `HttpOnly`
-cookie, so it never reaches a query string or a log. The core's control token never leaves the daemon: the
-page talks to `/api/*` and the daemon proxies an allowlist of control routes. From another machine, forward
+cookie, so it never reaches a query string or a log. The core's control token never leaves the server: the
+page talks to `/api/*` and the server proxies an allowlist of control routes. From another machine, forward
 the port instead of exposing it:
 
 ```sh
@@ -148,12 +154,13 @@ npm run verify               # lint, typecheck, format, tests, build, UI, binary
 To develop against a local core checkout, build it there (`npm run build`), run `bun link` in it and
 `bun link @atomic-chat/core` here; `package.json` and `bun.lock` stay untouched and `bun install --force` puts
 the pinned version back. `node dist/bin.js …` runs the CLI from source after `npm run build`; `npm run dev` in
-`packages/admin-ui` runs the SPA against a daemon started with `atc admin --no-open`.
+`packages/admin-ui` runs the SPA against a server started with `atc admin --no-open`.
 
 Note: the core's own CLI defaults its public API to port 6767; `atc` uses 1337, like the desktop app.
 
 ## Documentation
 
+- [`docs/concepts.md`](docs/concepts.md) — the product's words: server, engine, engine build, model, run, unload
 - [`AGENTS.md`](AGENTS.md) — working in this repository: map, rules, checklists
 - [`docs/architecture.md`](docs/architecture.md) — processes, ports and tokens, the data folder, host steps
 - [`docs/roadmap.md`](docs/roadmap.md) — the iterations behind the stubs, and the terminal UI design

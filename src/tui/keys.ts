@@ -26,9 +26,13 @@ export interface KeyResult {
   command?: TuiCommand
 }
 
-/** What the handler needs to know about the layout: how many rows the screen body has. */
+/** What the handler needs to know about the layout and the Commands screen's content. */
 export interface KeyView {
   bodyRows: number
+  /** Commands in the Commands list. */
+  commandCount: number
+  /** Lines of the open command's help (0 when none is open). */
+  helpLineCount: number
 }
 
 /** Log lines that fit under the Logs screen's status line. */
@@ -50,7 +54,7 @@ const down = (s: TuiState) => s.daemon.kind === 'down'
 
 export const GLOBAL_HINTS: KeyHint[] = [
   { keys: '←→', label: 'screens', probe: { input: '', key: { rightArrow: true } } },
-  { keys: '1-4', label: 'jump to', probe: { input: '2' }, helpOnly: true },
+  { keys: '1-5', label: 'jump to', probe: { input: '2' }, helpOnly: true },
   { keys: 'tab', label: 'next', probe: { input: '', key: { tab: true } }, helpOnly: true },
   { keys: '?', label: 'help', probe: { input: '?' } },
   { keys: 'q', label: 'quit', probe: { input: 'q' } },
@@ -58,7 +62,7 @@ export const GLOBAL_HINTS: KeyHint[] = [
 
 export const HINTS: Record<TabId, KeyHint[]> = {
   overview: [
-    { keys: 's', label: 'start daemon', probe: { input: 's' }, when: down },
+    { keys: 's', label: 'start the server', probe: { input: 's' }, when: down },
     { keys: 'S', label: 'stop', probe: { input: 'S' }, when: up },
     { keys: 'R', label: 'restart', probe: { input: 'R' }, when: up },
     { keys: 'a', label: 'admin link', probe: { input: 'a' }, when: up },
@@ -77,6 +81,27 @@ export const HINTS: Record<TabId, KeyHint[]> = {
     { keys: 'u', label: 'reset to default', probe: { input: 'u' } },
   ],
   doctor: [{ keys: 'r', label: 'run again', probe: { input: 'r' } }],
+  commands: [
+    {
+      keys: '↑↓',
+      label: 'move',
+      probe: { input: '', key: { downArrow: true } },
+      when: (s) => !s.commands.open,
+    },
+    {
+      keys: '⏎',
+      label: 'full help',
+      probe: { input: '', key: { return: true } },
+      when: (s) => !s.commands.open,
+    },
+    {
+      keys: '↑↓',
+      label: 'scroll',
+      probe: { input: '', key: { downArrow: true } },
+      when: (s) => s.commands.open,
+    },
+    { keys: 'esc', label: 'back', probe: { input: '', key: { escape: true } }, when: (s) => s.commands.open },
+  ],
 }
 
 export function footerHints(state: TuiState): KeyHint[] {
@@ -170,6 +195,24 @@ function tabKey(input: string, key: Key, state: TuiState, view: KeyView): KeyRes
     }
     case 'doctor':
       return input === 'r' ? run({ name: 'doctor' }) : none
+    case 'commands': {
+      if (state.commands.open) {
+        const max = Math.max(0, view.helpLineCount - (view.bodyRows - 1))
+        if (key.upArrow || input === 'k') return act({ type: 'commands-scroll', by: -1, max })
+        if (key.downArrow || input === 'j') return act({ type: 'commands-scroll', by: 1, max })
+        if (key.pageUp) return act({ type: 'commands-scroll', by: -page, max })
+        if (key.pageDown) return act({ type: 'commands-scroll', by: page, max })
+        if (key.return) return act({ type: 'commands-open', open: false })
+        return none
+      }
+      const count = view.commandCount
+      if (key.upArrow || input === 'k') return act({ type: 'commands-move', by: -1, count })
+      if (key.downArrow || input === 'j') return act({ type: 'commands-move', by: 1, count })
+      if (key.pageUp) return act({ type: 'commands-move', by: -page, count })
+      if (key.pageDown) return act({ type: 'commands-move', by: page, count })
+      if (key.return) return act({ type: 'commands-open', open: true })
+      return none
+    }
   }
 }
 
@@ -191,6 +234,7 @@ export function handleKey(input: string, key: Key, state: TuiState, view: KeyVie
     // Esc first undoes what is on screen (a log filter); with nothing to undo, it leaves.
     if (state.tab === 'logs' && state.logs.filter !== '')
       return act({ type: 'logs-filter', filter: '', filtering: false })
+    if (state.tab === 'commands' && state.commands.open) return act({ type: 'commands-open', open: false })
     return run({ name: 'quit' })
   }
   return tabKey(input, key, state, view)

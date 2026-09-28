@@ -29,15 +29,15 @@ export function HelpOverlay() {
     <Box flexDirection="column">
       <Text wrap="truncate-end">
         <Text bold>Keys</Text>
-        <Text {...tone('muted')}> · esc or ? closes · q leaves, the daemon keeps running</Text>
+        <Text {...tone('muted')}> · esc or ? closes · q leaves, the server keeps running</Text>
       </Text>
       <HintLine title="Anywhere" hints={GLOBAL_HINTS} />
       {TABS.map((tab) => (
         <HintLine key={tab} title={TAB_TITLES[tab]} hints={HINTS[tab]} />
       ))}
       <Text> </Text>
-      <Text {...tone('muted')} wrap="wrap">
-        Every action here is also a plain command: atc start, stop, restart, admin, config set, doctor.
+      <Text {...tone('muted')} wrap="truncate-end">
+        Every action here is also a plain command; the Commands screen (5) lists them all.
       </Text>
     </Box>
   )
@@ -45,11 +45,11 @@ export function HelpOverlay() {
 
 const QUESTIONS: Record<ConfirmAction, { question: string; detail: string }> = {
   stop: {
-    question: 'Stop the daemon?',
+    question: 'Stop the server?',
     detail: 'It unloads the models and stops the API and the web admin (the same as `atc stop`).',
   },
   restart: {
-    question: 'Restart the daemon?',
+    question: 'Restart the server?',
     detail: 'Models are unloaded and the API goes away for a moment (the same as `atc restart`).',
   },
 }

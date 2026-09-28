@@ -37,7 +37,7 @@ export function LogsScreen({ logs, path, height }: { logs: LogsState; path: stri
       {visible.length === 0 ? (
         <Text {...tone('muted')}>
           {logs.lines.length === 0
-            ? 'the log is empty; the daemon writes it once it runs'
+            ? 'the log is empty; the server writes it once it runs'
             : 'no line matches the filter'}
         </Text>
       ) : (

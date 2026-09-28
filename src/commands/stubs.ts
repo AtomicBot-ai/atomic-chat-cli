@@ -5,17 +5,6 @@
 
 import { defineCommand, notImplemented } from '../cli/index.js'
 
-const loadOptions = {
-  'engine': {
-    type: 'string',
-    description: 'llamacpp-upstream (default), llamacpp or mlx',
-    placeholder: 'provider',
-  },
-  'ctx-size': { type: 'string', description: 'Context size in tokens', placeholder: 'tokens' },
-  'n-gpu-layers': { type: 'string', description: 'GPU layers (-1 = all)', placeholder: 'n' },
-  'embedding': { type: 'boolean', description: 'Start in embedding mode' },
-} as const
-
 const apiOptions = {
   'port': { type: 'string', description: 'API port', placeholder: 'port', default: '1337' },
   'host': {
@@ -32,40 +21,39 @@ const apiOptions = {
   },
 } as const
 
-export const serveCommand = notImplemented({
-  name: 'serve',
-  summary: 'Get a model serving: engine, download, daemon, load, OpenAI-compatible API',
-  description:
-    'One step on a server: installs the best engine pack if needed, pulls the model if it is not installed, starts the daemon, loads the model and exposes http://127.0.0.1:1337/v1. Returns once the model answers; the daemon keeps running.',
-  group: 'run',
-  positionals: [
-    {
-      name: 'model',
-      description: 'owner/repo, owner/repo:file.gguf, a catalog alias, or serve.model from config',
-    },
-  ],
-  options: { ...apiOptions, ...loadOptions },
-  examples: ['atc serve Qwen/Qwen3-8B-GGUF', 'atc serve qwen3-8b --host 0.0.0.0 --api-key "$KEY"'],
-})
+const ENGINES = 'llamacpp-upstream, llamacpp, mlx or tensorrt-llm'
 
 export const runCommand = notImplemented({
   name: 'run',
-  summary: 'Like serve, but everything in the foreground (containers, systemd)',
+  summary: 'Start a downloaded model on the running server',
   description:
-    'Runs the daemon, the admin and the model in this process and stops them on SIGTERM/SIGINT. For Docker use `--init`. `--no-model` runs the daemon alone.',
-  group: 'run',
-  positionals: [{ name: 'model', description: 'As for serve' }],
+    'Loads the model on the active engine — the one running now, else engines.default — and makes it answer on the API. It downloads and starts nothing else: a missing model, server or engine is an error that names the command to run first (`atc models pull`, `atc start`, `atc engines install`). `atc unload` stops it; the desktop app calls these Run and Stop.',
+  group: 'models',
+  positionals: [{ name: 'model', description: 'Model id, as `atc models list` shows it', required: true }],
   options: {
-    ...apiOptions,
-    ...loadOptions,
-    'no-model': { type: 'boolean', description: 'Run the daemon without loading a model' },
+    engine: {
+      type: 'string',
+      description: `Engine to run it on (${ENGINES}); remembered as engines.default`,
+      placeholder: 'engine',
+    },
+    embedding: { type: 'boolean', description: 'Start it in embedding mode' },
   },
-  examples: ['atc run --host 0.0.0.0 --api-key-file /run/secrets/key Qwen/Qwen3-8B-GGUF'],
+  examples: ['atc run qwen3-8b', 'atc run qwen3-8b --engine mlx'],
+})
+
+export const unloadCommand = notImplemented({
+  name: 'unload',
+  summary: 'Stop a running model and free its memory',
+  description: 'The server keeps running and the model stays downloaded; `atc stop` stops the server.',
+  group: 'models',
+  positionals: [{ name: 'model', description: 'Model id; --all for every running model' }],
+  options: { all: { type: 'boolean', description: 'Unload every running model' } },
+  examples: ['atc unload qwen3-8b', 'atc unload --all'],
 })
 
 export const modelsCommand = defineCommand({
   name: 'models',
-  summary: 'Search, download, list, remove, load and unload models',
+  summary: 'The catalog and the model files: search, download, list, remove, describe',
   group: 'models',
   subcommands: [
     notImplemented({
@@ -109,76 +97,67 @@ export const modelsCommand = defineCommand({
       summary: 'model.yml, size, capabilities and whether it fits',
       positionals: [{ name: 'model', description: 'Model id', required: true }],
     }),
-    notImplemented({
-      name: 'load',
-      summary: 'Load a model into the running core',
-      positionals: [{ name: 'model', description: 'Model id', required: true }],
-      options: loadOptions,
-    }),
-    notImplemented({
-      name: 'unload',
-      summary: 'Unload a model',
-      positionals: [{ name: 'model', description: 'Model id', required: true }],
-    }),
   ],
 })
 
 export const enginesCommand = defineCommand({
   name: 'engines',
-  summary: 'Engine packs (llama.cpp builds) the core runs models with',
+  summary: 'Engines that run models (llama.cpp, MLX, TensorRT-LLM) and their builds',
+  description:
+    'No engine ships inside atc: install one before `atc run`. The core knows the hardware and picks the build for it; an engine that runs in a container (TensorRT-LLM) gets that prepared on install, with consent for the one privileged step.',
   group: 'models',
   subcommands: [
     notImplemented({
       name: 'list',
-      summary: 'Installed packs, the optimal one, and what is available',
-      options: { provider: { type: 'string', description: 'Provider', placeholder: 'id' } },
+      summary: 'Installed engines and builds, the running one, and what is available',
+      options: {
+        engine: { type: 'string', description: `Only this engine (${ENGINES})`, placeholder: 'engine' },
+      },
     }),
     notImplemented({
       name: 'install',
-      summary: 'Install a pack (the best for this hardware by default)',
-      positionals: [{ name: 'pack', description: 'version/backend, e.g. b6000/cuda-cu12.4-x64' }],
+      summary: 'Install an engine (the build the core recommends for this hardware)',
+      description:
+        'Shows what would change on the system before touching it; an engine that needs a container runtime or a driver setting asks first, elevates through sudo, pkexec or UAC, and resumes after a re-login or reboot.',
+      positionals: [{ name: 'engine', description: `${ENGINES}; the default engine when omitted` }],
       options: {
-        provider: { type: 'string', description: 'Provider', placeholder: 'id' },
-        force: { type: 'boolean', description: 'Reinstall' },
+        'build': {
+          type: 'string',
+          description: 'A specific build instead of the recommended one, e.g. b6000/cuda-cu12.4-x64',
+          placeholder: 'build',
+        },
+        'force': { type: 'boolean', description: 'Reinstall' },
+        'dry-run': { type: 'boolean', description: 'Print what would change and exit' },
+        'resume': {
+          type: 'string',
+          description: 'Continue an install after a re-login or reboot',
+          placeholder: 'operation-id',
+        },
       },
+      examples: ['atc engines install', 'atc engines install tensorrt-llm --dry-run'],
     }),
-    notImplemented({ name: 'status', summary: 'Active pack, driver facts, mismatch warnings' }),
+    notImplemented({
+      name: 'status',
+      summary: 'The running engine and build, driver facts, mismatch warnings',
+    }),
     notImplemented({
       name: 'rm',
-      summary: 'Remove a pack',
-      positionals: [{ name: 'pack', description: 'version/backend', required: true }],
+      summary: 'Remove an engine build, or the whole engine',
+      positionals: [{ name: 'engine', description: ENGINES, required: true }],
+      options: { build: { type: 'string', description: 'Only this build', placeholder: 'build' } },
     }),
   ],
 })
 
-export const setupCommand = notImplemented({
-  name: 'setup',
-  summary: 'Guided setup: hardware → engine → optional managed runtime (TensorRT-LLM via Docker)',
-  description:
-    'Shows what would change on the system, asks before touching it, elevates through sudo/pkexec/UAC when needed and resumes after a re-login or reboot. `--dry-run` only prints the plan.',
-  group: 'models',
-  options: {
-    'engine': { type: 'string', description: 'Engine to prepare', placeholder: 'provider' },
-    'managed': { type: 'boolean', description: 'Also set up the managed container runtime' },
-    'tensorrt': { type: 'boolean', description: 'Shorthand for --managed with TensorRT-LLM' },
-    'dry-run': { type: 'boolean', description: 'Print the plan and exit' },
-    'resume': {
-      type: 'string',
-      description: 'Continue an operation after re-login or reboot',
-      placeholder: 'operation-id',
-    },
-  },
-})
-
 export const hardwareCommand = defineCommand({
   name: 'hardware',
-  summary: 'What atc sees of the GPU and CPU, and what it tells the core',
+  summary: 'What the core sees of the GPU and CPU',
   group: 'models',
   subcommands: [
     notImplemented({ name: 'show', summary: 'GPUs, VRAM, driver, compute capability, CPU extensions' }),
     notImplemented({
       name: 'refresh',
-      summary: 'Probe again and push the facts to the running core',
+      summary: 'Probe the hardware again',
       options: {
         'cpu-extensions': {
           type: 'string',
@@ -192,12 +171,12 @@ export const hardwareCommand = defineCommand({
 
 export const apiCommand = defineCommand({
   name: 'api',
-  summary: 'The OpenAI-compatible API server and its key',
+  summary: 'The OpenAI-compatible API and its key',
   group: 'access',
   subcommands: [
     notImplemented({
       name: 'start',
-      summary: 'Start the API on the running core',
+      summary: 'Start the API on the running server',
       options: {
         ...apiOptions,
         'prefix': { type: 'string', description: 'Path prefix', placeholder: '/v1', default: '/v1' },
@@ -235,7 +214,7 @@ export const apiCommand = defineCommand({
 
 export const serviceCommand = defineCommand({
   name: 'service',
-  summary: 'Run the daemon as an OS service (systemd, launchd, Windows task)',
+  summary: 'Run the server as an OS service (systemd, launchd, Windows task)',
   group: 'system',
   subcommands: [
     notImplemented({

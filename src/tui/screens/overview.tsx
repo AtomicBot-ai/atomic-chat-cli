@@ -1,5 +1,5 @@
 /**
- * The Overview: the admin dashboard's cards in the same order and words (Daemon, Core, API server,
+ * The Overview: the admin dashboard's cards in the same order and words (Server, Core, API,
  * Loaded models, Pending host steps, Admin), one line each, so moving between the browser and the
  * terminal teaches nothing new.
  */
@@ -24,7 +24,7 @@ function Down({ error, dataFolder }: { error: string | undefined; dataFolder: st
   const tone = useTone()
   return (
     <Box flexDirection="column">
-      <Row mark="off" label="Daemon">
+      <Row mark="off" label="Server">
         not running
       </Row>
       <Row>{`data folder ${dataFolder}`}</Row>
@@ -57,7 +57,7 @@ export function OverviewScreen({
   height: number
 }) {
   const tone = useTone()
-  if (daemon.kind === 'connecting') return <Text {...tone('muted')}>connecting to the daemon…</Text>
+  if (daemon.kind === 'connecting') return <Text {...tone('muted')}>connecting to the server…</Text>
   if (daemon.kind === 'down') return <Down error={daemon.error} dataFolder={dataFolder} />
 
   const { snapshot, record, pending } = daemon
@@ -70,14 +70,14 @@ export function OverviewScreen({
   const steps = pending.slice(0, Math.max(1, spare - sessions.length))
   return (
     <Box flexDirection="column">
-      <Row mark="on" label="Daemon">
+      <Row mark="on" label="Server">
         {`pid ${record?.pid ?? snapshot.pid}${uptime}${started}`}
       </Row>
       <Row>{`data folder ${snapshot.data_folder}`}</Row>
       <Row mark="on" label="Core">
         {`${snapshot.version} · instance ${shortId(snapshot.instance_id)} · protocol ${snapshot.protocol} · pid ${snapshot.pid}`}
       </Row>
-      <Row mark={api.running ? 'on' : 'off'} label="API server">
+      <Row mark={api.running ? 'on' : 'off'} label="API">
         {api.running
           ? `http://${api.host}:${api.port}${api.prefix}${api.requires_api_key ? ' · key required' : ' · no key'}${api.pid ? ` · pid ${api.pid}` : ''}`
           : 'stopped'}

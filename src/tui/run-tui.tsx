@@ -5,6 +5,7 @@
  */
 
 import { render } from 'ink'
+import type { CommandSpec } from '../cli/index.js'
 import { EXIT } from '../errors/index.js'
 import type { AtcIo, TerminalStreams } from '../io.js'
 import { App } from './app.js'
@@ -19,6 +20,8 @@ export interface RunTuiOptions {
   color: boolean
   dataFolder: string
   waitForShutdown: AtcIo['waitForShutdown']
+  /** The command tree the Commands screen lists. */
+  root: CommandSpec
 }
 
 export async function runTui(options: RunTuiOptions): Promise<number> {
@@ -33,6 +36,7 @@ export async function runTui(options: RunTuiOptions): Promise<number> {
       now={deps.now}
       dataFolder={options.dataFolder}
       logPath={deps.paths.daemonLog}
+      root={options.root}
     />,
     {
       stdin: terminal.stdin,

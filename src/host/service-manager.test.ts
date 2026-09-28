@@ -12,7 +12,7 @@ const o = { name: 'atc', execPath: '/usr/local/bin/atc', dataFolder: '/srv/atc',
 describe('service templates', () => {
   it('renders a user systemd unit and a system one with User=', () => {
     const user = systemdUnit(o)
-    expect(user).toContain('ExecStart=/usr/local/bin/atc run --no-model --data-folder /srv/atc')
+    expect(user).toContain('ExecStart=/usr/local/bin/atc start --foreground --data-folder /srv/atc')
     expect(user).toContain('WantedBy=default.target')
     expect(user).not.toContain('User=')
     const system = systemdUnit({ ...o, system: true })

@@ -61,15 +61,15 @@ export function Logo() {
 }
 
 function daemonLine(daemon: DaemonView, now: number): { mark: string; role: Role; text: string } {
-  if (daemon.kind === 'connecting') return { mark: '○', role: 'muted', text: 'connecting to the daemon…' }
-  if (daemon.kind === 'down') return { mark: '○', role: 'muted', text: 'daemon stopped' }
+  if (daemon.kind === 'connecting') return { mark: '○', role: 'muted', text: 'connecting to the server…' }
+  if (daemon.kind === 'down') return { mark: '○', role: 'muted', text: 'server stopped' }
   const started = daemon.record?.started_at
   const api = daemon.snapshot.server
   return {
     mark: '●',
     role: 'ok',
     text: [
-      started === undefined ? 'daemon up' : `daemon up ${formatDuration(now - started)}`,
+      started === undefined ? 'server up' : `server up ${formatDuration(now - started)}`,
       api.running ? `API http://${api.host}:${api.port}${api.prefix}` : 'API stopped',
     ].join(' · '),
   }
@@ -124,7 +124,7 @@ export function WelcomeBox({
         </Text>
         <Text {...tone('muted')} wrap="truncate-end">{`data ${dataFolder}`}</Text>
         <Text wrap="truncate-end">
-          {daemon.kind === 'down' ? <Key name="s" label="start the daemon" /> : null}
+          {daemon.kind === 'down' ? <Key name="s" label="start the server" /> : null}
           {daemon.kind === 'up' ? <Key name="a" label="web admin" /> : null}
           <Key name="?" label="keys" />
           <Key name="q" label="quit" />

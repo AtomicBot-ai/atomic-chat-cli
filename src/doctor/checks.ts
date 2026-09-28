@@ -79,7 +79,7 @@ export const CHECKS: Check[] = [
   },
   {
     id: 'daemon',
-    title: 'daemon',
+    title: 'server',
     run: async (ctx) => {
       const record: DaemonRecord | undefined = await readDaemonRecord(ctx.paths.daemonRecord)
       if (!record) return { status: 'ok', message: 'not running' }
@@ -105,7 +105,7 @@ export const CHECKS: Check[] = [
       ].filter(Boolean)
       if (busy.length === 0) return { status: 'ok', message: `${ctx.apiPort} and ${ctx.adminPort} are free` }
       return ours
-        ? { status: 'ok', message: `${busy.join(', ')} in use (the daemon)` }
+        ? { status: 'ok', message: `${busy.join(', ')} in use (the server)` }
         : {
             status: 'warn',
             message: `${busy.join(', ')} in use by another program`,

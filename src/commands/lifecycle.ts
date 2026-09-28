@@ -1,6 +1,6 @@
 /** `start`, `stop`, `restart`, `status`: the background daemon from a command's point of view. */
 
-import { AtcError, defineCommand } from '../cli/index.js'
+import { AtcError, defineCommand, plannedPartial } from '../cli/index.js'
 import type { CommandContext } from '../cli/index.js'
 import {
   attachIfRunning,
@@ -21,7 +21,7 @@ const describe = (ctx: CommandContext, link: CoreLink): Promise<DaemonDescriptio
 
 function printStatus(ctx: CommandContext, s: DaemonDescription): void {
   ctx.out.kv([
-    ['daemon', `running (pid ${s.pid}${s.uptime_ms !== null ? `, up ${formatDuration(s.uptime_ms)}` : ''})`],
+    ['server', `running (pid ${s.pid}${s.uptime_ms !== null ? `, up ${formatDuration(s.uptime_ms)}` : ''})`],
     ['versions', `atc ${s.atc_version ?? '?'}, core ${s.core_version}`],
     ['data folder', s.data_folder],
     [
@@ -42,18 +42,29 @@ function printStatus(ctx: CommandContext, s: DaemonDescription): void {
 
 export const startCommand = defineCommand({
   name: 'start',
-  summary: 'Start the atc daemon (core + web admin) in the background',
-  group: 'run',
+  summary: 'Start the server (core, API, web admin) in the background',
+  group: 'server',
+  description:
+    'The server keeps running after this command; `atc stop` ends it. With --foreground it stays in this process instead — for Docker and systemd — and stops on SIGTERM or Ctrl+C.',
   options: {
     'admin': { type: 'boolean', description: 'Serve the web admin (--no-admin to skip)', default: true },
-    'admin-port': { type: 'string', description: 'Admin port for this daemon', placeholder: 'port' },
+    'admin-port': { type: 'string', description: 'Admin port for this server', placeholder: 'port' },
+    'foreground': {
+      type: 'boolean',
+      description: 'Stay in the foreground (containers, systemd); SIGTERM stops it',
+    },
   },
   run: async (inv, ctx) => {
+    if (inv.values['foreground'] === true) {
+      throw new AtcError('ATC_NOT_IMPLEMENTED', '`atc start --foreground` is not implemented yet.', {
+        details: `planned for ${plannedPartial('start --foreground')}`,
+      })
+    }
     const existing = await attached(ctx)
     if (existing) {
       const s = await describe(ctx, existing)
       ctx.out.result({ started: false, ...s }, () => {
-        ctx.out.note('the daemon is already running')
+        ctx.out.note('the server is already running')
         printStatus(ctx, s)
       })
       return 0
@@ -64,7 +75,7 @@ export const startCommand = defineCommand({
     const link = await startDaemon((o) => ctx.core.attach(o), ctx.paths, args)
     const s = await describe(ctx, link)
     ctx.out.result({ started: true, ...s }, () => {
-      ctx.out.success('daemon started')
+      ctx.out.success('server started')
       printStatus(ctx, s)
       ctx.out.note('it keeps running after this command; `atc stop` ends it')
     })
@@ -74,8 +85,8 @@ export const startCommand = defineCommand({
 
 export const stopCommand = defineCommand({
   name: 'stop',
-  summary: 'Stop the daemon: unload models, stop the API and the admin',
-  group: 'run',
+  summary: 'Stop the server: unload the models, stop the API and the admin',
+  group: 'server',
   options: {
     force: { type: 'boolean', description: 'Stop even while other atc commands are attached' },
     kill: { type: 'boolean', description: 'After a graceful stop times out, kill the process' },
@@ -83,7 +94,7 @@ export const stopCommand = defineCommand({
   run: async (inv, ctx) => {
     const link = await attached(ctx)
     if (!link) {
-      ctx.out.result({ stopped: false, running: false }, () => ctx.out.note('the daemon is not running'))
+      ctx.out.result({ stopped: false, running: false }, () => ctx.out.note('the server is not running'))
       return 0
     }
     const instanceId = link.endpoint.instanceId
@@ -103,18 +114,18 @@ export const stopCommand = defineCommand({
       }
     }
     if (!released)
-      throw new AtcError('ATC_DAEMON_ALREADY_RUNNING', 'The daemon did not stop in time.', {
+      throw new AtcError('ATC_DAEMON_ALREADY_RUNNING', 'The server did not stop in time.', {
         hint: 'retry with --kill',
       })
-    ctx.out.result({ stopped: true }, () => ctx.out.success('daemon stopped'))
+    ctx.out.result({ stopped: true }, () => ctx.out.success('server stopped'))
     return 0
   },
 })
 
 export const restartCommand = defineCommand({
   name: 'restart',
-  summary: 'Stop the daemon if it runs, then start it',
-  group: 'run',
+  summary: 'Stop the server if it runs, then start it',
+  group: 'server',
   run: async (inv, ctx) => {
     const stop = await stopCommand.run!({ ...inv, path: ['stop'], values: {}, spec: stopCommand }, ctx)
     if (stop !== 0) return stop
@@ -124,8 +135,8 @@ export const restartCommand = defineCommand({
 
 export const statusCommand = defineCommand({
   name: 'status',
-  summary: 'Show the daemon, the API endpoint, loaded models and the admin URL',
-  group: 'run',
+  summary: 'Show the server, the API endpoint, running models and the admin URL',
+  group: 'server',
   options: { watch: { type: 'boolean', description: 'Refresh every 2 seconds until interrupted' } },
   run: async (inv, ctx) => {
     if (inv.values['watch'] === true) {
@@ -137,10 +148,10 @@ export const statusCommand = defineCommand({
     if (!link) {
       ctx.out.result({ running: false, data_folder: ctx.paths.dataFolder }, () => {
         ctx.out.kv([
-          ['daemon', 'not running'],
+          ['server', 'not running'],
           ['data folder', ctx.paths.dataFolder],
         ])
-        ctx.out.note('start it with `atc start`, or `atc serve <model>`')
+        ctx.out.note('start it with `atc start`, then `atc run <model>`')
       })
       return 0
     }

@@ -9,7 +9,7 @@ describe('coerceValue', () => {
     ['api.trustedHosts', 'a, b', ['a', 'b']],
     ['api.trustedHosts', '', []],
     ['log.level', 'debug', 'debug'],
-    ['serve.model', ' x ', 'x'],
+    ['api.host', ' x ', 'x'],
   ])('%s ← %j', (path, raw, expected) => {
     expect(coerceValue(fieldFor(path)!, raw)).toEqual(expected)
   })

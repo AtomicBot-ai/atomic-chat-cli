@@ -10,19 +10,19 @@ import { CHECKS, runChecks } from '../doctor/index.js'
 import { HostStepJournal } from '../host/index.js'
 import { colorEnabled } from '../output/index.js'
 
-const SCREENS = ['overview', 'logs', 'config', 'doctor'] as const
+const SCREENS = ['overview', 'logs', 'config', 'doctor', 'commands'] as const
 type Screen = (typeof SCREENS)[number]
 
 export const tuiCommand = defineCommand({
   name: 'tui',
-  summary: 'Full-screen terminal UI over the daemon (what bare `atc` opens on a terminal)',
+  summary: 'Full-screen terminal UI over the server (what bare `atc` opens on a terminal)',
   description:
-    'A live screen for people at a keyboard: the daemon, the core, the API and loaded models, the daemon log, the config and doctor, with keys to start, stop and restart the daemon and change settings. Bare `atc` opens it on an interactive terminal. It needs a terminal; in scripts use `atc status --json`, in a browser `atc admin`. Every action it offers is also a plain command, and leaving it never stops the daemon.',
+    'A live screen for people at a keyboard: the server, the core, the API and running models, the server log, the config, doctor and every command with its help, with keys to start, stop and restart the server and change settings. Bare `atc` opens it on an interactive terminal. It needs a terminal; in scripts use `atc status --json`, in a browser `atc admin`. Every action it offers is also a plain command, and leaving it never stops the server.',
   group: 'access',
   options: {
     screen: {
       type: 'string',
-      description: 'Open on a screen: overview, logs, config, doctor',
+      description: 'Open on a screen: overview, logs, config, doctor, commands',
       placeholder: 'name',
       default: 'overview',
     },
@@ -47,6 +47,7 @@ export const tuiCommand = defineCommand({
       color: colorEnabled({ isTTY: io.isTTY.stdout, env: io.env, noColor: ctx.flags.noColor }),
       dataFolder: paths.dataFolder,
       waitForShutdown: io.waitForShutdown,
+      root: ctx.root,
       deps: {
         paths,
         attach: (options) => ctx.core.attach(options),

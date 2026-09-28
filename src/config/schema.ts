@@ -20,16 +20,10 @@ export interface FieldSpec {
   max?: number
 }
 
-export const CONFIG_VERSION = 1
+export const CONFIG_VERSION = 2
 
 export interface AtcConfig {
   version: number
-  serve: {
-    model?: string
-    engine: 'llamacpp-upstream' | 'llamacpp' | 'mlx'
-    ctxSize?: number
-    nGpuLayers?: number
-  }
   api: {
     host: string
     port: number
@@ -40,7 +34,7 @@ export interface AtcConfig {
     requireKey: boolean
   }
   admin: { host: string; port: number; openOnStart: boolean; autoStart: boolean }
-  engines: { autoInstall: boolean; provider: 'llamacpp-upstream' | 'llamacpp' | 'mlx' }
+  engines: { autoInstall: boolean; default: 'llamacpp-upstream' | 'llamacpp' | 'mlx' }
   models: { autoLoad: string[] }
   managed: { mode: 'off' | 'docker-tensorrt'; image?: string }
   proxy: { url?: string; noProxy: string[]; ignoreSsl: boolean }
@@ -52,33 +46,6 @@ export interface AtcConfig {
 const PROVIDERS = ['llamacpp-upstream', 'llamacpp', 'mlx'] as const
 
 export const FIELDS: readonly FieldSpec[] = [
-  {
-    path: 'serve.model',
-    type: 'string',
-    default: undefined,
-    description: 'Model to serve by default (`atc serve` without an argument)',
-  },
-  {
-    path: 'serve.engine',
-    type: 'enum',
-    values: PROVIDERS,
-    default: 'llamacpp-upstream',
-    description: 'Engine used by `atc serve`',
-  },
-  {
-    path: 'serve.ctxSize',
-    type: 'number',
-    default: undefined,
-    min: 512,
-    description: 'Context size passed on load (tokens)',
-  },
-  {
-    path: 'serve.nGpuLayers',
-    type: 'number',
-    default: undefined,
-    min: -1,
-    description: 'GPU layers passed on load (-1 = all)',
-  },
   {
     path: 'api.host',
     type: 'string',
@@ -105,7 +72,7 @@ export const FIELDS: readonly FieldSpec[] = [
     path: 'api.autoStart',
     type: 'boolean',
     default: true,
-    description: 'Start the API when the daemon starts',
+    description: 'Start the API when the server starts',
   },
   {
     path: 'api.requireKey',
@@ -132,26 +99,26 @@ export const FIELDS: readonly FieldSpec[] = [
     path: 'admin.autoStart',
     type: 'boolean',
     default: true,
-    description: 'Serve the admin when the daemon starts',
+    description: 'Serve the admin when the server starts',
   },
   {
     path: 'engines.autoInstall',
     type: 'boolean',
     default: true,
-    description: 'Install the best engine pack automatically',
+    description: 'Install the engine build the core recommends when the server starts with none',
   },
   {
-    path: 'engines.provider',
+    path: 'engines.default',
     type: 'enum',
     values: PROVIDERS,
     default: 'llamacpp-upstream',
-    description: 'Default local provider',
+    description: 'Engine `atc run` uses when none is running and none is named (`--engine` sets it)',
   },
   {
     path: 'models.autoLoad',
     type: 'string[]',
     default: [],
-    description: 'Models to load when the daemon starts',
+    description: 'Models to run when the server starts',
   },
   {
     path: 'managed.mode',
@@ -198,7 +165,7 @@ export const FIELDS: readonly FieldSpec[] = [
     type: 'enum',
     values: ['debug', 'info', 'warn', 'error'],
     default: 'info',
-    description: 'Daemon log level',
+    description: 'Server log level',
   },
   {
     path: 'log.maxFiles',
@@ -206,7 +173,7 @@ export const FIELDS: readonly FieldSpec[] = [
     default: 5,
     min: 1,
     max: 50,
-    description: 'Rotated daemon log files to keep',
+    description: 'Rotated server log files to keep',
   },
   {
     path: 'log.maxSizeMb',
@@ -214,7 +181,7 @@ export const FIELDS: readonly FieldSpec[] = [
     default: 10,
     min: 1,
     max: 1024,
-    description: 'Size of one daemon log file',
+    description: 'Size of one server log file',
   },
 ]
 

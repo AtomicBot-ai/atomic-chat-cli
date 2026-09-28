@@ -23,7 +23,7 @@ function Dashboard() {
     <div className="space-y-6">
       <PageHeader
         title="Dashboard"
-        description="What the daemon, the core and the API server are doing right now."
+        description="What the server, the core and the API are doing right now."
         actions={
           <>
             {updatedAt ? (
@@ -54,7 +54,7 @@ function StatusCards({ status }: { status: AdminStatus }) {
   const { atc, core, daemon, admin, api, sessions, pending_host_steps: steps } = status
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-      <StatusCard title="Daemon" description="The atc process behind this admin" icon={Activity}>
+      <StatusCard title="Server" description="The Atomic Server process behind this admin" icon={Activity}>
         <StatusList>
           <StatusRow label="PID" value={daemon.pid} mono />
           <StatusRow label="Started" value={formatTime(daemon.started_at)} />
@@ -74,7 +74,7 @@ function StatusCards({ status }: { status: AdminStatus }) {
       </StatusCard>
 
       <StatusCard
-        title="API server"
+        title="API"
         description="The OpenAI-compatible endpoint"
         icon={Server}
         badge={

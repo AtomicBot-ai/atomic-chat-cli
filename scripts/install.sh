@@ -97,6 +97,8 @@ case "$PATH_STATUS" in
 esac
 echo
 echo "next:"
+echo "  atc                            # the terminal UI"
 echo "  atc doctor                     # check the machine"
-echo "  atc serve Qwen/Qwen3-8B-GGUF   # pull a model and serve http://127.0.0.1:1337/v1"
+echo "  atc engines install            # the engine build the core picks for this hardware"
+echo "  atc models pull Qwen/Qwen3-8B-GGUF && atc run Qwen/Qwen3-8B-GGUF"
 echo "  atc admin                      # the web admin"

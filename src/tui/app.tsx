@@ -5,7 +5,10 @@
  */
 
 import { Box, Text, useApp, useInput, useWindowSize } from 'ink'
-import { useEffect, useReducer, useRef, useState } from 'react'
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import type { CommandSpec } from '../cli/index.js'
+import type { CommandRow } from './command-list.js'
+import { commandRows, helpLines } from './command-list.js'
 import {
   Footer,
   Header,
@@ -17,7 +20,7 @@ import {
 } from './components/index.js'
 import type { TuiControllerLike } from './controller.js'
 import { footerHints, handleKey } from './keys.js'
-import { ConfigScreen, DoctorScreen, LogsScreen, OverviewScreen } from './screens/index.js'
+import { CommandsScreen, ConfigScreen, DoctorScreen, LogsScreen, OverviewScreen } from './screens/index.js'
 import type { TabId, TuiAction, TuiState } from './state.js'
 import { initialState, reduce } from './state.js'
 import type { Theme } from './theme.js'
@@ -54,17 +57,21 @@ export interface AppProps {
   now: () => Date
   dataFolder: string
   logPath: string
+  /** The command tree, for the Commands screen (the same one `atc --help` renders). */
+  root: CommandSpec
 }
 
 function Body({
   state,
   props,
+  commands,
   now,
   width,
   height,
 }: {
   state: TuiState
   props: AppProps
+  commands: CommandRow[]
   now: number
   width: number
   height: number
@@ -79,10 +86,22 @@ function Body({
       return <ConfigScreen config={state.config} width={width} height={height} />
     case 'doctor':
       return <DoctorScreen doctor={state.doctor} height={height} />
+    case 'commands':
+      return <CommandsScreen rows={commands} state={state.commands} width={width} height={height} />
   }
 }
 
-function Frame({ state, props, now }: { state: TuiState; props: AppProps; now: number }) {
+function Frame({
+  state,
+  props,
+  commands,
+  now,
+}: {
+  state: TuiState
+  props: AppProps
+  commands: CommandRow[]
+  now: number
+}) {
   const tone = useTone()
   const { columns, rows } = useWindowSize()
   if (rows < MIN_ROWS || columns < MIN_COLUMNS)
@@ -109,7 +128,7 @@ function Frame({ state, props, now }: { state: TuiState; props: AppProps; now: n
         height={bodyRows + 2}
         overflow="hidden"
       >
-        <Body state={state} props={props} now={now} width={bodyWidth} height={bodyRows} />
+        <Body state={state} props={props} commands={commands} now={now} width={bodyWidth} height={bodyRows} />
       </Box>
       <StatusLine busy={state.busy} last={state.activity.at(-1)} />
       <Footer hints={footerHints(state)} width={columns} />
@@ -124,6 +143,7 @@ export function App(props: AppProps) {
   const controller = useRef<TuiControllerLike | undefined>(undefined)
   const [now, setNow] = useState(() => props.now().getTime())
   const { createController, now: clock } = props
+  const commands = useMemo(() => commandRows(props.root), [props.root])
 
   useEffect(() => {
     const c = createController(dispatch)
@@ -150,7 +170,12 @@ export function App(props: AppProps) {
   latest.current = state
   useInput((input, key) => {
     const { bodyRows } = layoutFor(columns, rows)
-    const result = handleKey(input, key, latest.current, { bodyRows })
+    const open = latest.current.commands.open ? commands[latest.current.commands.cursor] : undefined
+    const result = handleKey(input, key, latest.current, {
+      bodyRows,
+      commandCount: commands.length,
+      helpLineCount: open ? helpLines(open, columns - 4).length : 0,
+    })
     for (const action of result.actions) {
       latest.current = reduce(latest.current, action)
       dispatch(action)
@@ -161,7 +186,7 @@ export function App(props: AppProps) {
 
   return (
     <ThemeContext.Provider value={props.theme}>
-      <Frame state={state} props={props} now={now} />
+      <Frame state={state} props={props} commands={commands} now={now} />
     </ThemeContext.Provider>
   )
 }

@@ -38,7 +38,7 @@ function start(over: Partial<TuiDeps> = {}): TuiController {
         running = true
         return link
       }
-      throw new AtcError('ATC_DAEMON_NOT_RUNNING', 'No atc daemon is running for this data folder.')
+      throw new AtcError('ATC_DAEMON_NOT_RUNNING', 'Atomic Server is not running for this data folder.')
     },
     loadConfig: async () => resolveConfig({ fileText: await readTextFile(paths.configFile), env: {} }),
     runDoctor: async () => [{ id: 'version', title: 'versions', status: 'ok', message: 'fine' }],
@@ -57,7 +57,7 @@ const last = <T extends TuiAction['type']>(type: T) =>
   actions.filter((a): a is Extract<TuiAction, { type: T }> => a.type === type).at(-1)
 
 describe('TuiController', () => {
-  it('reports the daemon, the config and the log as soon as it starts', async () => {
+  it('reports the server, the config and the log as soon as it starts', async () => {
     start()
     await eventually(() => last('daemon')?.daemon.kind === 'up', 'daemon up')
     await eventually(() => last('config-rows') !== undefined, 'config rows')
@@ -65,7 +65,7 @@ describe('TuiController', () => {
     expect(last('config-rows')?.rows.find((r) => r.path === 'api.port')?.value).toBe('1337')
   })
 
-  it('says down when no daemon runs, and starts one on request', async () => {
+  it('says down when no server runs, and starts one on request', async () => {
     running = false
     start()
     await eventually(() => last('daemon')?.daemon.kind === 'down', 'daemon down')
@@ -83,35 +83,35 @@ describe('TuiController', () => {
     await controller.run({ name: 'start' })
     expect(last('daemon')?.daemon.kind).toBe('up')
     expect(actions.filter((a) => a.type === 'busy').map((a) => a.text)).toEqual([
-      'starting the daemon',
+      'starting the server',
       undefined,
     ])
-    expect(last('activity')?.line.text).toBe('daemon started')
+    expect(last('activity')?.line.text).toBe('server started')
   })
 
-  it('points at the log when the daemon does not start', async () => {
+  it('points at the log when the server does not start', async () => {
     running = false
     start({
       attach: async () => {
-        throw new AtcError('ATC_DAEMON_START_FAILED', 'Could not start the atc daemon.')
+        throw new AtcError('ATC_DAEMON_START_FAILED', 'Could not start the server.')
       },
     })
     await controller.run({ name: 'start' })
     expect(last('activity')?.line).toEqual({
       time: expect.any(Number),
       level: 'error',
-      text: 'the daemon did not start: Could not start the atc daemon. — the Logs screen (2) says why',
+      text: 'the server did not start: Could not start the server. — the Logs screen (2) says why',
     })
     expect(last('busy')?.text).toBeUndefined()
   })
 
-  it('stops the daemon through a lease and shows it down at once', async () => {
+  it('stops the server through a lease and shows it down at once', async () => {
     start()
     await eventually(() => last('daemon')?.daemon.kind === 'up', 'daemon up')
     await controller.run({ name: 'stop' })
     expect(link.shutdowns).toBe(1)
     expect(last('daemon')?.daemon.kind).toBe('down')
-    expect(last('activity')?.line).toMatchObject({ level: 'info', text: 'daemon stopped' })
+    expect(last('activity')?.line).toMatchObject({ level: 'info', text: 'server stopped' })
   })
 
   it('writes a config change like `config set`, and explains a refusal', async () => {
@@ -121,7 +121,7 @@ describe('TuiController', () => {
     expect(JSON.parse(readFileSync(paths.configFile, 'utf8')).api.port).toBe(1338)
     expect(last('config-message')?.message).toEqual({
       level: 'info',
-      text: 'api.port = 1338 — restart the daemon (R on Overview) to apply',
+      text: 'api.port = 1338 — restart the server (R on Overview) to apply',
     })
     expect(last('config-rows')?.rows.find((r) => r.path === 'api.port')).toMatchObject({
       value: '1338',
@@ -138,7 +138,7 @@ describe('TuiController', () => {
     expect(JSON.parse(readFileSync(paths.configFile, 'utf8')).api.port).toBe(1337)
   })
 
-  it('runs doctor, and builds the admin link only when the daemon has an admin', async () => {
+  it('runs doctor, and builds the admin link only when the server has an admin', async () => {
     start()
     await controller.run({ name: 'doctor' })
     expect(actions.filter((a) => a.type.startsWith('doctor')).map((a) => a.type)).toEqual([

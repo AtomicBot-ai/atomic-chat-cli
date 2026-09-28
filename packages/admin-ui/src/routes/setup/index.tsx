@@ -24,7 +24,7 @@ function SetupPage() {
   return (
     <PlaceholderPage
       title="Setup"
-      description="The managed environment: a service account, its data folder and the service that keeps the daemon running."
+      description="The managed environment: a service account, its data folder and the service that keeps the server running."
       iteration={7}
       note="Until the setup API exists the stepper below runs on fixture data; the buttons only move the fixture."
     >

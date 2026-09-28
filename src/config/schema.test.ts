@@ -4,7 +4,7 @@ import { defaultConfig, envNameFor, fieldFor, FIELDS, getAt, setAt } from './sch
 describe('schema', () => {
   it('derives env names from paths', () => {
     expect(envNameFor(fieldFor('api.port')!)).toBe('ATC_API_PORT')
-    expect(envNameFor(fieldFor('serve.nGpuLayers')!)).toBe('ATC_SERVE_N_GPU_LAYERS')
+    expect(envNameFor(fieldFor('engines.autoInstall')!)).toBe('ATC_ENGINES_AUTO_INSTALL')
     expect(envNameFor(fieldFor('proxy.ignoreSsl')!)).toBe('ATC_PROXY_IGNORE_SSL')
   })
 
@@ -14,7 +14,8 @@ describe('schema', () => {
     const config = defaultConfig()
     expect(config.api.port).toBe(1337)
     expect(config.admin.port).toBe(1338)
-    expect(config.serve.model).toBeUndefined()
+    expect(config.engines.default).toBe('llamacpp-upstream')
+    expect(config.proxy.url).toBeUndefined()
   })
 
   it('gets and sets dotted paths', () => {

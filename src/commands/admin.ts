@@ -9,13 +9,13 @@ const open = defineCommand({
     open: { type: 'boolean', description: 'Open a browser (--no-open to only print)', default: true },
     host: {
       type: 'string',
-      description: 'Bind address of a daemon started by this command',
+      description: 'Bind address of a server started by this command',
       placeholder: 'host',
       default: '127.0.0.1',
     },
     port: {
       type: 'string',
-      description: 'Admin port of a daemon started by this command',
+      description: 'Admin port of a server started by this command',
       placeholder: 'port',
     },
   },
@@ -27,7 +27,7 @@ const open = defineCommand({
     const link = await ctx.core.attach({ launch: true, daemonArgs: args })
     const record = await waitForDaemonReady(ctx.paths.daemonRecord, link.endpoint.instanceId)
     if (!record?.admin_url) {
-      throw new AtcError('ATC_ADMIN_BIND_FAILED', 'The running daemon has no web admin.', {
+      throw new AtcError('ATC_ADMIN_BIND_FAILED', 'The running server has no web admin.', {
         hint: 'restart it: `atc restart` (without --no-admin)',
       })
     }
@@ -49,7 +49,7 @@ const status = defineCommand({
     const record = await readDaemonRecord(ctx.paths.daemonRecord)
     const url = record?.admin_url ?? null
     ctx.out.result({ running: record !== undefined, admin_url: url }, () =>
-      ctx.out.line(url ?? (record ? 'the daemon runs without the admin' : 'the daemon is not running'))
+      ctx.out.line(url ?? (record ? 'the server runs without the admin' : 'the server is not running'))
     )
     return 0
   },

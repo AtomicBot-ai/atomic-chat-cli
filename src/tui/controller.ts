@@ -109,11 +109,11 @@ export class TuiController implements TuiControllerLike {
       case 'quit':
         return
       case 'start':
-        return this.busyWhile('starting the daemon', () => this.launchDaemon())
+        return this.busyWhile('starting the server', () => this.launchDaemon())
       case 'stop':
-        return this.busyWhile('stopping the daemon', async () => void (await this.stop()))
+        return this.busyWhile('stopping the server', async () => void (await this.stop()))
       case 'restart':
-        return this.busyWhile('restarting the daemon', async () => {
+        return this.busyWhile('restarting the server', async () => {
           if (await this.stop()) await this.launchDaemon()
         })
       case 'refresh':
@@ -158,10 +158,10 @@ export class TuiController implements TuiControllerLike {
       link = await startDaemon((o) => this.deps.attach({ ...o, log: this.log }), this.deps.paths)
     } catch (error) {
       // The daemon wrote why it gave up (a busy admin port, a bad config) to its log, not to us.
-      this.note('error', `the daemon did not start: ${oneLine(error)} — the Logs screen (2) says why`)
+      this.note('error', `the server did not start: ${oneLine(error)} — the Logs screen (2) says why`)
       return
     }
-    this.note('info', 'daemon started')
+    this.note('info', 'server started')
     // Show it now rather than on the watcher's next attach.
     await this.onDaemon({ kind: 'up', link, snapshot: await link.snapshot() })
   }
@@ -170,15 +170,15 @@ export class TuiController implements TuiControllerLike {
   private async stop(): Promise<boolean> {
     const link = this.link ?? (await attachIfRunning((o) => this.deps.attach({ ...o, log: this.log })))
     if (!link) {
-      this.note('info', 'the daemon is not running')
+      this.note('info', 'the server is not running')
       return true
     }
     const released = await stopDaemon(link, this.deps.paths, { client: 'atc tui', now: this.deps.now })
     if (!released) {
-      this.note('error', 'The daemon did not stop in time. — retry with `atc stop --kill`')
+      this.note('error', 'The server did not stop in time. — retry with `atc stop --kill`')
       return false
     }
-    this.note('info', 'daemon stopped')
+    this.note('info', 'server stopped')
     await this.onDaemon({ kind: 'down' })
     return true
   }
@@ -223,7 +223,7 @@ export class TuiController implements TuiControllerLike {
         onReset: () => this.dispatch({ type: 'logs-reset', lines: [] }),
       })
     } catch (error) {
-      this.note('warn', `cannot read the daemon log: ${oneLine(error)}`)
+      this.note('warn', `cannot read the server log: ${oneLine(error)}`)
     }
   }
 
@@ -250,7 +250,7 @@ export class TuiController implements TuiControllerLike {
       await this.reloadConfig()
       const notes = [describeEdit(edit.key, edit.value)]
       if (edit.overriddenByEnv) notes.push('an environment variable overrides it')
-      else if (this.link) notes.push('restart the daemon (R on Overview) to apply')
+      else if (this.link) notes.push('restart the server (R on Overview) to apply')
       this.dispatch({
         type: 'config-message',
         message: { level: edit.overriddenByEnv ? 'warn' : 'info', text: notes.join(' — ') },
@@ -263,7 +263,7 @@ export class TuiController implements TuiControllerLike {
   private async adminLink(): Promise<void> {
     const record = await readDaemonRecord(this.deps.paths.daemonRecord)
     if (!record?.admin_url) {
-      const error = 'The running daemon has no web admin. — restart it: `atc restart` (without --no-admin)'
+      const error = 'The running server has no web admin. — restart it: `atc restart` (without --no-admin)'
       this.dispatch({ type: 'overlay', overlay: { kind: 'admin-link', url: undefined, error } })
       return
     }

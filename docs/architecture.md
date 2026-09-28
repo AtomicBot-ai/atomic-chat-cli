@@ -25,7 +25,7 @@ the code disagree, fix the page.
 | Process | Lifetime | Responsibilities |
 | --- | --- | --- |
 | `atc <command>` | seconds | Parse, resolve paths and config, `attach` (or spawn) the daemon, hold a lease while it works, print one result, exit with a code. Never holds a URL or token outside `src/core-link/`. |
-| `atc daemon` (hidden) | until `atc stop`, `POST /shutdown` or a signal | Owns the data folder through the core's lock. Runs the core in-process, the admin server, the hardware push, the host-step loop; writes `daemon.json`; cleans up on exit. Spawned by `start` and `admin` (later `serve`); run in the foreground by a service or `atc run`. |
+| `atc daemon` (hidden) | until `atc stop`, `POST /shutdown` or a signal | Owns the data folder through the core's lock. Runs the core in-process, the admin server, the hardware push, the host-step loop; writes `daemon.json`; cleans up on exit. Spawned by `start` and `admin`; run in place by a service or `atc start --foreground` (iteration 2). Users know it as "the server" ([`concepts.md`](concepts.md)). |
 | engines | per session | Children of the daemon, journalled by the core in `processes.json`; a later owner reaps orphans. |
 | `atc host-step exec` (hidden) | seconds | The privileged half of a managed-runtime step: file in, file out, no network. |
 
@@ -123,6 +123,8 @@ the foreground process, and changes nothing above:
    → `PUT /hardware/override { gpus, cpu_extensions, os_type, source: 'atc-prober' }`. The core never
    probes GPUs itself and does not persist the override, so this runs on every start (and on
    `atc hardware refresh`, iteration 4). A failed probe is a warning: the core will pick a CPU engine.
+   This is transitional: the hardware facts and the choice of engine build belong to the core, and a core
+   branch moves the probe there; `atc` then stops pushing and only shows what the core found.
 5. Admin, unless `--no-admin` or `admin.autoStart=false`: `ensureAdminToken`, then `AdminServer.start` on
    `admin.host:admin.port`. A non-loopback host is refused (`ATC_ADMIN_BIND_FAILED`, iteration 5).
 6. `writeDaemonRecord(atc/run/daemon.json)` — from now on commands accept this owner as an `atc` daemon.
@@ -186,8 +188,8 @@ Flow, in `src/host/host-step.ts` and `elevator.ts`:
 6. The daemon maps the result to a receipt (journal `ran` → `posted`). A `manual` step stays
    `pending-manual`: `atc status` and the admin's `pending_host_steps` show the exact command
    (`sudo atc host-step exec <file>`), and the 2-second poll posts the receipt when the result file appears.
-7. `relogin-required` / `reboot-required` persist nothing extra: the core holds the phase; `atc setup
-   --resume <op>` posts `…/resume` (iteration 4).
+7. `relogin-required` / `reboot-required` persist nothing extra: the core holds the phase; `atc engines
+   install --resume <op>` posts `…/resume` (iteration 4).
 
 | Strategy | Chosen when (first match) | Runs | Status |
 | --- | --- | --- | --- |
@@ -209,9 +211,9 @@ from the journal alone (`HostStepExecutor.checkPendingResults`).
 
 | Concern | The core (`atomic-chat-core`) | `atc` |
 | --- | --- | --- |
-| Engines | Backend packs: catalog, hardware tiers, install, update, the optimal-pack cache; spawning `llama-server`. | Chooses and asks (`atc engines`, iteration 4); pushes the hardware facts the core cannot measure. |
+| Engines | Engine builds: catalog, hardware tiers, install, update, the optimal-build choice; starting each engine the way it runs (a process, or a container for a managed engine). | Asks (`atc engines`, iterations 2 and 4); pushes hardware facts until the core probes them itself. No engine ships in the binary. |
 | Models | `model.yml`, registry, GGUF metadata, sessions, load/unload; the downloader and HF helpers as a library. | Installs models on the client side like the desktop app does: resolve, disk check, download, `model.yml` (iteration 3, over `@atomic-chat/core/models` and `/downloads`). |
-| Public API | The `/v1` server, its settings (`server.api_key`, `enable_on_startup`). | Where and how to expose it: `api.*` config, `atc api`, `atc serve` (iteration 2). |
+| Public API | The `/v1` server, its settings (`server.api_key`, `enable_on_startup`). | Where and how to expose it: `api.*` config, `atc api` (iteration 2). |
 | Environments | The managed-runtime state machine, store, image pulls, WSL import, recovery. | Consent UI and the privileged step (above). |
 | Settings | Engine parameters (`GET/PATCH /settings/:provider`), telemetry consent. | `atc`'s own `config.json`; `config set telemetry.enabled` also reaches the core (iteration 2). |
 | Ownership | The lock, the token, attach semantics, client leases, shutdown. | `daemon.json` to tell an `atc` daemon from the core's CLI daemon; spawn with a log file. |
@@ -224,9 +226,10 @@ an export request in the core branch.
 `src/cli/not-implemented.ts` is the registry: `PLANNED` maps each stub command to an iteration, and
 `PLANNED_PARTIAL` names the stubbed features of working commands (`logs --follow`, `update apply`,
 `config engine.*`, `host-step recipes`). A unit test keeps the registry and the command tree in agreement,
-and `docs/commands.md` (generated) shows the status of every command. The iteration map: **I2** daemon
-lifecycle, `serve`/`run`, `api start|stop`; **I3** models and API keys; **I4** engines, `setup`, managed
-environments, elevation; **I5** admin pages (API, models, engines) and non-loopback consent (the terminal
-UI shipped early and gains a screen in I2–I4); **I6** service,
-update apply, doctor completion; **I7** admin setup wizard, logs, settings, hardware; **I8** signing and
-notarisation.
+and `docs/commands.md` (generated) shows the status of every command. The iteration map: **I2** a first
+model answering (`engines install`, `models pull`, `run`, `unload`, `api start|stop`, `start
+--foreground`); **I3** the catalog, resumable pulls, model management and API keys; **I4** engines and
+hardware from the core, the managed runtime, elevation; **I5** admin pages (API, models, engines) and
+non-loopback consent; **I6** service, update apply, doctor completion; **I7** the admin's engine install
+wizard, logs, settings, hardware; **I8** signing and notarisation. The terminal UI shipped early and gains
+a screen per iteration.

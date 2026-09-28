@@ -26,7 +26,7 @@ const exec = defineCommand({
 /** Hidden: the privileged helper the daemon (or a person, by hand) runs with elevated rights. */
 export const hostStepCommand = defineCommand({
   name: 'host-step',
-  summary: 'Privileged helper for managed-runtime setup (run by the daemon)',
+  summary: 'Privileged helper for managed-runtime setup (run by the server)',
   hidden: true,
   subcommands: [exec],
 })

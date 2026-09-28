@@ -46,7 +46,7 @@ export function SignIn({ refused = false }: SignInProps) {
             <KeyRound className="size-5" aria-hidden />
             Sign in to atc admin
           </CardTitle>
-          <CardDescription>This browser has no session with the daemon.</CardDescription>
+          <CardDescription>This browser has no session with the server.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-5 text-sm">
           <ol className="list-decimal space-y-2 pl-5">

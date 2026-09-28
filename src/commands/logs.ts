@@ -4,8 +4,8 @@ import { tailLines } from '../daemon/index.js'
 
 export const logsCommand = defineCommand({
   name: 'logs',
-  summary: 'Show the daemon log',
-  group: 'run',
+  summary: 'Show the server log',
+  group: 'server',
   options: {
     lines: { type: 'string', short: 'n', description: 'Lines to show', default: '200', placeholder: 'count' },
     follow: { type: 'boolean', short: 'f', description: 'Keep printing new lines' },

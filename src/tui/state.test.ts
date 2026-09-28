@@ -8,7 +8,7 @@ describe('reduce', () => {
   it('moves between tabs by number and wraps around with tab-step', () => {
     const s = initialState()
     expect(apply(s, { type: 'tab', tab: 'config' }).tab).toBe('config')
-    expect(apply(s, { type: 'tab-step', delta: -1 }).tab).toBe('doctor')
+    expect(apply(s, { type: 'tab-step', delta: -1 }).tab).toBe('commands')
     expect(apply(s, { type: 'tab-step', delta: 1 }, { type: 'tab-step', delta: 1 }).tab).toBe('config')
   })
 
